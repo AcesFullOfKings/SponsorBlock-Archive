@@ -1,0 +1,14 @@
+# CSV files (large data files)
+*.csv
+
+# SQL files (database files)
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+
+# Text files (personal notes)
+*.txt
+
+# Python files (temporary - will be committed later)
+*.py
