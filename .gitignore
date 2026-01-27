@@ -10,9 +10,11 @@
 # Text files (personal notes)
 *.txt
 
-# Python files (temporary - will be committed later)
-*.py
+# temp Python files
 *.pyc
+
+#local config - not public
+config.py
 
 
 .DS_Store
