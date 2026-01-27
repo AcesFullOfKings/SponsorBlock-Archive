@@ -233,19 +233,36 @@ def process_archive(archive_path: Path, temp_dir: Path, force: bool = False):
     if processed > 0:
         print()
         print("=" * 60)
-        print("Optimizing Static Database")
+        print("Testing VACUUM on Static Database")
         print("=" * 60)
-        print("Running VACUUM on staticData.sqlite3...")
-        print("(This reclaims space and may take a few minutes)")
 
         static_db_path = Path(config.STATIC_DB_PATH)
+
+        # Get filesize before VACUUM
+        size_before_mb = static_db_path.stat().st_size / (1024 * 1024)
+        print(f"Database size before VACUUM: {size_before_mb:.2f} MB")
+
+        print("Running VACUUM...")
+        print("(This may take a few minutes)")
+
         try:
             static_conn = sqlite3.connect(static_db_path)
             static_conn.execute("VACUUM")
             static_conn.close()
-            print("Database optimization complete")
+
+            # Get filesize after VACUUM
+            size_after_mb = static_db_path.stat().st_size / (1024 * 1024)
+            print(f"Database size after VACUUM: {size_after_mb:.2f} MB")
+
+            size_saved_mb = size_before_mb - size_after_mb
+            if size_saved_mb > 0:
+                percent_saved = (size_saved_mb / size_before_mb) * 100
+                print(f"Space reclaimed: {size_saved_mb:.2f} MB ({percent_saved:.1f}%)")
+            else:
+                print(f"No space reclaimed (database size unchanged)")
+
         except Exception as e:
-            print(f"Warning: Failed to optimize static database: {e}")
+            print(f"Warning: Failed to VACUUM static database: {e}")
 
     # Summary
     print()
