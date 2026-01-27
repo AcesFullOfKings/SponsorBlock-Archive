@@ -292,6 +292,9 @@ def process_csv_file(csv_path: str):
     try:
         # Connect to databases
         temp_conn = sqlite3.connect(temp_db_path)
+        # Handle UTF-8 decode errors gracefully when reading from temp database
+        temp_conn.text_factory = lambda b: b.decode(errors='replace')
+
         static_conn = sqlite3.connect(static_db_path)
         daily_conn = sqlite3.connect(daily_db_path)
 
