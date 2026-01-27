@@ -196,7 +196,7 @@ def import_csv_to_temp_db(csv_path: Path) -> Path:
 
 def process_csv_file(csv_path: str):
     """Main function to process a sponsorTimes.csv file."""
-    start_time = time.time()
+    process_start_time = time.time() # careful - the variable "start_time" (a string) is already used below ;)
 
     csv_path = Path(csv_path)
 
@@ -373,9 +373,9 @@ def process_csv_file(csv_path: str):
         print(f"  Compression ratio: {csv_size_mb / (static_size_mb + daily_size_mb):.2f}x")
 
         # Show total time taken
-        elapsed_time = time.time() - start_time
-        minutes = int(elapsed_time // 60)
-        seconds = int(elapsed_time % 60)
+        process_elapsed_time = time.time() - process_start_time
+        minutes = int(process_elapsed_time // 60)
+        seconds = int(process_elapsed_time % 60)
         print(f"\nTime taken: {minutes}m {seconds}s")
 
     finally:

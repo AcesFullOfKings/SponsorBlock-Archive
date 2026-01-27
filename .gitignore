@@ -1,5 +1,6 @@
 # CSV files (large data files)
 *.csv
+*.7z
 
 # SQL files (database files)
 *.sql
