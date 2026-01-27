@@ -21,6 +21,7 @@ import subprocess
 import sys
 import re
 import time
+import sqlite3
 from pathlib import Path
 from datetime import datetime
 from typing import List, Tuple
@@ -41,7 +42,7 @@ def list_archive_contents(archive_path: Path) -> List[str]:
     """List all files in the 7z archive."""
     print(f"Listing contents of {archive_path.name}...")
 
-    cmd = [config.SEVENZ_COMMAND, 'l', '-slt', str(archive_path)]
+    cmd = [config.SEVENZ_COMMAND, 'l', str(archive_path)]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -51,21 +52,20 @@ def list_archive_contents(archive_path: Path) -> List[str]:
         raise RuntimeError(f"7-Zip command '{config.SEVENZ_COMMAND}' not found. "
                          f"Please install 7-Zip or update SEVENZ_COMMAND in config.py")
 
-    # Parse output to extract filenames
+    # Parse table format output to extract filenames
+    # Format: Date Time Attr Size Compressed Name
+    # Lines starting with YYYY-MM-DD are file entries
     files = []
-    current_file = None
+    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}\s+')
 
     for line in result.stdout.split('\n'):
-        line = line.strip()
-        if line.startswith('Path = ') and not line.endswith('.7z'):
-            # Extract filename (skip the archive itself)
-            filename = line.split('Path = ', 1)[1]
-            if filename and not filename.endswith('.7z'):
-                current_file = filename
-        elif line.startswith('Folder = -') and current_file:
-            # This is a file (not a folder)
-            files.append(current_file)
-            current_file = None
+        # Check if line starts with a date (YYYY-MM-DD HH:MM:SS)
+        if date_pattern.match(line):
+            # Split on whitespace, filename is the last field
+            parts = line.split()
+            if len(parts) >= 6:  # Date Time Attr Size Compressed Name
+                filename = parts[-1]
+                files.append(filename)
 
     return files
 
@@ -228,6 +228,24 @@ def process_archive(archive_path: Path, temp_dir: Path, force: bool = False):
                 missing.append(basename)
         except:
             missing.append(basename)
+
+    # Step 4: Optimize static database (VACUUM)
+    if processed > 0:
+        print()
+        print("=" * 60)
+        print("Optimizing Static Database")
+        print("=" * 60)
+        print("Running VACUUM on staticData.sqlite3...")
+        print("(This reclaims space and may take a few minutes)")
+
+        static_db_path = Path(config.STATIC_DB_PATH)
+        try:
+            static_conn = sqlite3.connect(static_db_path)
+            static_conn.execute("VACUUM")
+            static_conn.close()
+            print("Database optimization complete")
+        except Exception as e:
+            print(f"Warning: Failed to optimize static database: {e}")
 
     # Summary
     print()

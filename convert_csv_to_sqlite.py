@@ -136,31 +136,31 @@ def get_or_create_segment_id(cursor: sqlite3.Cursor, segment_uuid: str,
         ))
         segment_cache[segment_uuid] = result[0]
         return result[0]
+    else:
+        # Create new segment
+        cursor.execute("""
+            INSERT INTO segments (
+                long_id, video_id, user_id, start_time, end_time,
+                category, action_type, time_submitted,
+                hidden, shadow_hidden, locked
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            segment_uuid,
+            segment_data['video_id'],
+            segment_data['user_id'],
+            segment_data['start_time'],
+            segment_data['end_time'],
+            segment_data['category'],
+            segment_data['action_type'],
+            segment_data['time_submitted'],
+            segment_data['hidden'],
+            segment_data['shadow_hidden'],
+            segment_data['locked']
+        ))
 
-    # Create new segment
-    cursor.execute("""
-        INSERT INTO segments (
-            long_id, video_id, user_id, start_time, end_time,
-            category, action_type, time_submitted,
-            hidden, shadow_hidden, locked
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        segment_uuid,
-        segment_data['video_id'],
-        segment_data['user_id'],
-        segment_data['start_time'],
-        segment_data['end_time'],
-        segment_data['category'],
-        segment_data['action_type'],
-        segment_data['time_submitted'],
-        segment_data['hidden'],
-        segment_data['shadow_hidden'],
-        segment_data['locked']
-    ))
-
-    short_id = cursor.lastrowid
-    segment_cache[segment_uuid] = short_id
-    return short_id
+        short_id = cursor.lastrowid
+        segment_cache[segment_uuid] = short_id
+        return short_id
 
 
 def extract_date_from_filename(filename: str) -> str:
@@ -169,6 +169,73 @@ def extract_date_from_filename(filename: str) -> str:
     if not match:
         raise ValueError(f"Could not extract date from filename: {filename}")
     return match.group(1)
+
+
+def import_csv_to_temp_db_python_fallback(csv_path: Path) -> Path:
+    """Import CSV using Python when SQLite import fails (handles encoding errors)."""
+    import csv
+
+    temp_db_path = csv_path.parent / f"temp_import_{csv_path.stem}.db"
+
+    # Remove temp database if it exists from a previous run
+    if temp_db_path.exists():
+        temp_db_path.unlink()
+
+    print(f"Importing CSV using Python fallback (with encoding error handling)...")
+
+    # Create database and table
+    conn = sqlite3.connect(temp_db_path)
+    cursor = conn.cursor()
+
+    # Create table matching CSV structure
+    cursor.execute("""
+        CREATE TABLE sponsorTimes (
+            videoID TEXT, startTime TEXT, endTime TEXT, votes TEXT, locked TEXT,
+            incorrectVotes TEXT, UUID TEXT, userID TEXT, timeSubmitted TEXT,
+            views TEXT, category TEXT, actionType TEXT, service TEXT,
+            videoDuration TEXT, hidden TEXT, reputation TEXT, shadowHidden TEXT,
+            hashedVideoID TEXT, userAgent TEXT, description TEXT
+        )
+    """)
+
+    # Read CSV with error handling
+    skipped_rows = 0
+    imported_rows = 0
+
+    with open(csv_path, 'r', encoding='utf-8', errors='replace') as f:
+        reader = csv.reader(f)
+        next(reader)  # Skip header
+
+        for row_num, row in enumerate(reader, start=2):
+            try:
+                if len(row) != 20:
+                    skipped_rows += 1
+                    continue
+
+                cursor.execute("""
+                    INSERT INTO sponsorTimes VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, row)
+                imported_rows += 1
+
+                # Commit every 100k rows
+                if imported_rows % 100000 == 0:
+                    conn.commit()
+                    print(f"  Imported {imported_rows:,} rows...")
+
+            except Exception as e:
+                skipped_rows += 1
+                if skipped_rows <= 5:
+                    print(f"  Warning: Skipping row {row_num} due to error: {e}")
+
+    conn.commit()
+    conn.close()
+
+    if skipped_rows > 0:
+        print(f"CSV imported with {skipped_rows:,} rows skipped due to errors")
+    else:
+        print(f"CSV imported successfully")
+
+    return temp_db_path
 
 
 def import_csv_to_temp_db(csv_path: Path) -> Path:
@@ -188,7 +255,9 @@ def import_csv_to_temp_db(csv_path: Path) -> Path:
     result = os.system(cmd)
 
     if result != 0:
-        raise RuntimeError(f"Failed to import CSV file using SQLite")
+        # SQLite import failed, try Python fallback
+        print(f"SQLite import failed (possibly due to encoding errors), using Python fallback...")
+        return import_csv_to_temp_db_python_fallback(csv_path)
 
     print(f"CSV imported successfully to temporary database")
     return temp_db_path
@@ -261,6 +330,7 @@ def process_csv_file(csv_path: str):
 
         # Process rows from temporary database
         row_count = 0
+        skipped_rows = 0
         temp_cursor.execute("SELECT * FROM sponsorTimes")
 
         for row in temp_cursor:
@@ -273,53 +343,66 @@ def process_csv_file(csv_path: str):
                 static_conn.execute("BEGIN TRANSACTION")
                 daily_conn.execute("BEGIN TRANSACTION")
 
-            # Parse row (columns in CSV order)
-            # Use _ for unused columns that we're dropping
-            video_id, start_time, end_time, votes, locked, _, uuid, \
-                user_id_long, time_submitted, views, category, action_type, _, \
-                _, hidden, _, shadow_hidden, _, \
-                _, _ = row
+            try:
+                # Parse row (columns in CSV order)
+                # Use _ for unused columns that we're dropping
+                video_id, start_time, end_time, votes, locked, _, uuid, \
+                    user_id_long, time_submitted, views, category, action_type, _, \
+                    _, hidden, _, shadow_hidden, _, \
+                    _, _ = row
 
-            # Get or create user ID
-            user_short_id = get_or_create_user_id(
-                static_cursor,
-                user_id_long,
-                user_cache
-            )
+                # Get or create user ID
+                user_short_id = get_or_create_user_id(
+                    static_cursor,
+                    user_id_long,
+                    user_cache
+                )
 
-            # Prepare segment data
-            segment_data = {
-                'video_id': video_id,
-                'user_id': user_short_id,
-                'start_time': float(start_time),
-                'end_time': float(end_time),
-                'category': category,
-                'action_type': action_type,
-                'time_submitted': int(float(time_submitted)),
-                'hidden': int(hidden),
-                'shadow_hidden': int(shadow_hidden),
-                'locked': int(locked)
-            }
+                # Prepare segment data
+                segment_data = {
+                    'video_id': video_id,
+                    'user_id': user_short_id,
+                    'start_time': float(start_time),
+                    'end_time': float(end_time),
+                    'category': category,
+                    'action_type': action_type,
+                    'time_submitted': int(float(time_submitted)),
+                    'hidden': int(hidden),
+                    'shadow_hidden': int(shadow_hidden),
+                    'locked': int(locked)
+                }
 
-            # Get or create segment ID
-            segment_short_id = get_or_create_segment_id(
-                static_cursor,
-                uuid,
-                segment_data,
-                segment_cache
-            )
+                # Get or create segment ID
+                segment_short_id = get_or_create_segment_id(
+                    static_cursor,
+                    uuid,
+                    segment_data,
+                    segment_cache
+                )
 
-            # Insert daily data
-            daily_cursor.execute("""
-                INSERT INTO segment_data (segment_id, votes, views)
-                VALUES (?, ?, ?)
-            """, (
-                segment_short_id,
-                int(votes),
-                int(views)
-            ))
+                # Insert daily data
+                daily_cursor.execute("""
+                    INSERT INTO segment_data (segment_id, votes, views)
+                    VALUES (?, ?, ?)
+                """, (
+                    segment_short_id,
+                    int(votes),
+                    int(views)
+                ))
 
-        print(f"Finished processing {row_count:,} rows")
+            except Exception as e:
+                skipped_rows += 1
+                # Only print first few errors to avoid spam
+                if skipped_rows <= 5:
+                    print(f"Warning: Skipping row {row_count} due to error: {e}")
+                elif skipped_rows == 6:
+                    print(f"Warning: More errors detected, suppressing further messages...")
+                continue
+
+        if skipped_rows > 0:
+            print(f"Finished processing {row_count:,} rows ({skipped_rows:,} rows skipped due to errors)")
+        else:
+            print(f"Finished processing {row_count:,} rows")
 
         # Commit final transaction
         print("Committing final changes to databases...")
@@ -344,12 +427,6 @@ def process_csv_file(csv_path: str):
         static_conn.commit()
         daily_conn.commit()
         print("Indexes created successfully")
-
-        # Optimize database files
-        print("Optimizing database files...")
-        static_conn.execute("VACUUM")
-        daily_conn.execute("VACUUM")
-        print("Database optimization complete")
 
         # Close connections
         temp_conn.close()
@@ -379,11 +456,33 @@ def process_csv_file(csv_path: str):
         print(f"\nTime taken: {minutes}m {seconds}s")
 
     finally:
-        # Clean up temporary database
+        # Ensure all database connections are closed to prevent locks
+        print("Cleaning up...")
+        try:
+            if 'temp_conn' in locals() and temp_conn:
+                temp_conn.close()
+                print("  Closed temporary database connection")
+        except:
+            pass
+
+        try:
+            if 'static_conn' in locals() and static_conn:
+                static_conn.close()
+                print("  Closed static database connection")
+        except:
+            pass
+
+        try:
+            if 'daily_conn' in locals() and daily_conn:
+                daily_conn.close()
+                print("  Closed daily database connection")
+        except:
+            pass
+
+        # Clean up temporary database file
         if temp_db_path.exists():
-            print(f"Cleaning up temporary database...")
             temp_db_path.unlink()
-            print("Temporary database removed")
+            print("  Removed temporary database file")
 
 
 def main():

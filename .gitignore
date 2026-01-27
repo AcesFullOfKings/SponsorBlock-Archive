@@ -7,6 +7,11 @@
 *.sqlite
 *.sqlite3
 *.db
+*.sqlite3-shm
+*.sqlite3-wal
+
+# Error logs
+processing_errors.log
 
 # Text files (personal notes)
 *.txt
