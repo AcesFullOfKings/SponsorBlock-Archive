@@ -281,10 +281,14 @@ def process_csv_file(csv_path: str):
     static_db_path = Path(config.STATIC_DB_PATH)
     daily_db_dir = Path(config.DAILY_DB_DIR)
     daily_db_dir.mkdir(parents=True, exist_ok=True)
-    daily_db_path = daily_db_dir / f"{date_str}_segmentData.sqlite3"
+    daily_db_final_path = daily_db_dir / f"{date_str}_segmentData.sqlite3"
+
+    # Create daily database locally (same dir as CSV) for faster writes
+    daily_db_temp_path = csv_path.parent / f"{date_str}_segmentData_temp.sqlite3"
 
     print(f"Static database: {static_db_path}")
-    print(f"Daily database: {daily_db_path}")
+    print(f"Daily database (temp): {daily_db_temp_path}")
+    print(f"Daily database (final): {daily_db_final_path}")
 
     # Import CSV to temporary database
     temp_db_path = import_csv_to_temp_db(csv_path)
@@ -296,7 +300,8 @@ def process_csv_file(csv_path: str):
         temp_conn.text_factory = lambda b: b.decode(errors='replace')
 
         static_conn = sqlite3.connect(static_db_path)
-        daily_conn = sqlite3.connect(daily_db_path)
+        # Create daily database locally for faster writes
+        daily_conn = sqlite3.connect(daily_db_temp_path)
 
         # Optimize SQLite settings for bulk inserts
         print("Optimizing database settings for bulk insert...")
@@ -436,13 +441,19 @@ def process_csv_file(csv_path: str):
         static_conn.close()
         daily_conn.close()
 
+        # Move daily database to final location
+        print("Moving daily database to final location...")
+        import shutil
+        shutil.move(str(daily_db_temp_path), str(daily_db_final_path))
+        print(f"  Moved to: {daily_db_final_path}")
+
         print("Conversion complete!")
         print(f"Static database updated: {static_db_path}")
-        print(f"Daily database created: {daily_db_path}")
+        print(f"Daily database created: {daily_db_final_path}")
 
         # Show file sizes
         static_size_mb = static_db_path.stat().st_size / (1024 * 1024)
-        daily_size_mb = daily_db_path.stat().st_size / (1024 * 1024)
+        daily_size_mb = daily_db_final_path.stat().st_size / (1024 * 1024)
         csv_size_mb = csv_path.stat().st_size / (1024 * 1024)
 
         print(f"\nFile sizes:")
@@ -482,10 +493,15 @@ def process_csv_file(csv_path: str):
         except:
             pass
 
-        # Clean up temporary database file
+        # Clean up temporary database files
         if temp_db_path.exists():
             temp_db_path.unlink()
-            print("  Removed temporary database file")
+            print("  Removed temporary import database")
+
+        # Clean up temp daily database if it still exists (error case)
+        if daily_db_temp_path.exists():
+            daily_db_temp_path.unlink()
+            print("  Removed incomplete daily database")
 
 
 def main():
