@@ -9,12 +9,11 @@ Usage:
     python process_7z_archive.py <path_to_7z_file> [options]
 
 Options:
-    --temp-dir <path>   Temporary directory for extraction (default: current directory)
     --force             Reprocess files even if daily database already exists
 
 Example:
     python process_7z_archive.py sponsorTimes_2024-01.7z
-    python process_7z_archive.py sponsorTimes_2024-01.7z --temp-dir /tmp
+    python process_7z_archive.py sponsorTimes_2024-01.7z --force
 """
 
 import subprocess
@@ -122,13 +121,17 @@ def get_daily_db_path(date_str: str) -> Path:
     return daily_db_dir / f"{date_str}_segmentData.sqlite3"
 
 
-def process_archive(archive_path: Path, temp_dir: Path, force: bool = False):
+def process_archive(archive_path: Path, force: bool = False):
     """Main function to process a 7z archive."""
     start_time = time.time()
 
     if not archive_path.exists():
         print(f"Error: Archive not found: {archive_path}")
         sys.exit(1)
+
+    # Use temp directory from config
+    temp_dir = Path(config.TEMP_DIR)
+    temp_dir.mkdir(parents=True, exist_ok=True)
 
     error_log_path = Path("processing_errors.log")
 
@@ -155,6 +158,7 @@ def process_archive(archive_path: Path, temp_dir: Path, force: bool = False):
 
     for i, csv_filename in enumerate(csv_files, 1):
         basename = Path(csv_filename).name
+        extracted_csv = None  # Initialize to ensure cleanup always works
 
         try:
             # Extract date from filename
@@ -200,8 +204,9 @@ def process_archive(archive_path: Path, temp_dir: Path, force: bool = False):
 
             finally:
                 # Always delete the extracted CSV to save space
-                if extracted_csv.exists():
+                if extracted_csv and extracted_csv.exists():
                     extracted_csv.unlink()
+                    print(f"  Deleted extracted CSV")
 
         except Exception as e:
             # Extraction or other error
@@ -229,6 +234,8 @@ def process_archive(archive_path: Path, temp_dir: Path, force: bool = False):
         except:
             missing.append(basename)
 
+    """
+    (removed this as it is taking ages to run, and I can just vacuum the db myself manually at the end)
     # Step 4: Optimize static database (VACUUM)
     if processed > 0:
         print()
@@ -263,6 +270,7 @@ def process_archive(archive_path: Path, temp_dir: Path, force: bool = False):
 
         except Exception as e:
             print(f"Warning: Failed to VACUUM static database: {e}")
+    """
 
     # Summary
     print()
@@ -306,20 +314,14 @@ def main():
         description='Process 7z archives containing SponsorBlock CSV files'
     )
     parser.add_argument('archive', help='Path to the 7z archive file')
-    parser.add_argument('--temp-dir', default='.',
-                       help='Temporary directory for extraction (default: current directory)')
     parser.add_argument('--force', action='store_true',
                        help='Reprocess files even if daily database already exists')
 
     args = parser.parse_args()
 
     archive_path = Path(args.archive)
-    temp_dir = Path(args.temp_dir)
 
-    # Create temp directory if it doesn't exist
-    temp_dir.mkdir(parents=True, exist_ok=True)
-
-    process_archive(archive_path, temp_dir, args.force)
+    process_archive(archive_path, args.force)
 
 
 if __name__ == "__main__":

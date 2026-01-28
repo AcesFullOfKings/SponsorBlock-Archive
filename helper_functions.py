@@ -258,37 +258,3 @@ def get_user_segments(user_uuid: str, date: Optional[str] = None) -> List[Dict]:
     daily_conn.close()
 
     return segments
-
-
-# =============================================================================
-# Example Usage
-# =============================================================================
-
-if __name__ == "__main__":
-    # Example: Get all available dates
-    print("Available dates:")
-    dates = get_available_dates()
-    print(f"  First: {dates[0] if dates else 'None'}")
-    print(f"  Latest: {dates[-1] if dates else 'None'}")
-    print(f"  Total: {len(dates)} dates")
-    print()
-
-    # Example: Get segment info
-    # Replace with an actual UUID from your database
-    example_uuid = "0" * 64  # Placeholder
-    print(f"Looking up segment {example_uuid[:16]}...")
-    segment = get_segment_info(example_uuid)
-    if segment:
-        print(f"  Found: video {segment['video_id']}, {segment['votes']} votes")
-    else:
-        print("  Not found")
-    print()
-
-    # Example: Get user segments
-    # Replace with an actual user UUID from your database
-    example_user = "0" * 64  # Placeholder
-    print(f"Looking up segments by user {example_user[:16]}...")
-    user_segments = get_user_segments(example_user)
-    print(f"  Found {len(user_segments)} segments")
-    if user_segments:
-        print(f"  First segment: video {user_segments[0]['video_id']}")

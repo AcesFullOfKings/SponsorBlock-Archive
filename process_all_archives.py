@@ -10,13 +10,11 @@ Usage:
     python process_all_archives.py [options]
 
 Options:
-    --temp-dir <path>   Local directory for temporary archive copies (default: current directory)
     --force             Reprocess archives even if daily databases already exist
     --start-from <file> Start processing from a specific archive file (for resuming)
 
 Example:
     python process_all_archives.py
-    python process_all_archives.py --temp-dir ./temp
     python process_all_archives.py --start-from sponsorTimes_2023-06.7z
 """
 
@@ -92,12 +90,16 @@ def copy_archive_locally(network_path: Path, local_dir: Path) -> Path:
     return local_path
 
 
-def process_all_archives_main(temp_dir: Path, force: bool = False, start_from: str = None):
+def process_all_archives_main(force: bool = False, start_from: str = None):
     """Main function to process all archives from network folder."""
     overall_start_time = time.time()
 
     # Get network archive source path
     network_path = Path(config.NETWORK_ARCHIVE_SOURCE)
+
+    # Use temp directory from config
+    temp_dir = Path(config.TEMP_DIR)
+    temp_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 80)
     print("SponsorBlock Archive Batch Processor")
@@ -108,9 +110,6 @@ def process_all_archives_main(temp_dir: Path, force: bool = False, start_from: s
     if start_from:
         print(f"Starting from: {start_from}")
     print()
-
-    # Create temp directory if needed
-    temp_dir.mkdir(parents=True, exist_ok=True)
 
     # Get list of archives
     try:
@@ -149,7 +148,7 @@ def process_all_archives_main(temp_dir: Path, force: bool = False, start_from: s
             # Step 2: Process the archive
             print(f"  Processing archive...")
             print()
-            process_archive(local_archive, temp_dir, force)
+            process_archive(local_archive, force)
 
             print()
             print(f"  Archive {network_archive.name} completed successfully")
@@ -216,8 +215,6 @@ def main():
     parser = argparse.ArgumentParser(
         description='Process all .7z archives from network folder'
     )
-    parser.add_argument('--temp-dir', default='.',
-                       help='Local directory for temporary archive copies (default: current directory)')
     parser.add_argument('--force', action='store_true',
                        help='Reprocess archives even if daily databases already exist')
     parser.add_argument('--start-from',
@@ -225,10 +222,8 @@ def main():
 
     args = parser.parse_args()
 
-    temp_dir = Path(args.temp_dir)
-
     try:
-        process_all_archives_main(temp_dir, args.force, args.start_from)
+        process_all_archives_main(args.force, args.start_from)
     except KeyboardInterrupt:
         sys.exit(130)  # Standard exit code for SIGINT
 

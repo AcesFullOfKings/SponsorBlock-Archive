@@ -21,6 +21,7 @@ processing_errors.log
 
 #local config - not public
 config.py
+temp/
 
 
 .DS_Store

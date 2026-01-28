@@ -175,7 +175,7 @@ def import_csv_to_temp_db_python_fallback(csv_path: Path) -> Path:
     """Import CSV using Python when SQLite import fails (handles encoding errors)."""
     import csv
 
-    temp_db_path = csv_path.parent / f"temp_import_{csv_path.stem}.db"
+    temp_db_path = Path(config.TEMP_DIR) / f"temp_import_{csv_path.stem}.db"
 
     # Remove temp database if it exists from a previous run
     if temp_db_path.exists():
@@ -240,7 +240,7 @@ def import_csv_to_temp_db_python_fallback(csv_path: Path) -> Path:
 
 def import_csv_to_temp_db(csv_path: Path) -> Path:
     """Import CSV file into a temporary SQLite database using native SQLite import."""
-    temp_db_path = csv_path.parent / f"temp_import_{csv_path.stem}.db"
+    temp_db_path = Path(config.TEMP_DIR) / f"temp_import_{csv_path.stem}.db"
 
     # Remove temp database if it exists from a previous run
     if temp_db_path.exists():
@@ -267,6 +267,10 @@ def process_csv_file(csv_path: str):
     """Main function to process a sponsorTimes.csv file."""
     process_start_time = time.time() # careful - the variable "start_time" (a string) is already used below ;)
 
+    # Create temp directory if it doesn't exist
+    temp_dir = Path(config.TEMP_DIR)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
     csv_path = Path(csv_path)
 
     if not csv_path.exists():
@@ -283,8 +287,8 @@ def process_csv_file(csv_path: str):
     daily_db_dir.mkdir(parents=True, exist_ok=True)
     daily_db_final_path = daily_db_dir / f"{date_str}_segmentData.sqlite3"
 
-    # Create daily database locally (same dir as CSV) for faster writes
-    daily_db_temp_path = csv_path.parent / f"{date_str}_segmentData_temp.sqlite3"
+    # Create daily database locally in temp directory for faster writes
+    daily_db_temp_path = Path(config.TEMP_DIR) / f"{date_str}_segmentData_temp.sqlite3"
 
     print(f"Static database: {static_db_path}")
     print(f"Daily database (temp): {daily_db_temp_path}")
