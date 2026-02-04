@@ -7,7 +7,7 @@ import threading
 
 from time        import sleep, localtime, time
 from bottle      import route, template, default_app, request, static_file, request, error, HTTPResponse, response
-from config      import data_path, home_folder, server_folder, auth_token, test_private_ID, beta_folder
+from config      import data_path, home_folder, server_folder, auth_token, test_private_ID, beta_folder, pi_file_server_url, pi_auth_token
 from datetime    import datetime
 from contextlib  import suppress
 
@@ -448,7 +448,7 @@ def add_downvote():
 		return HTTPResponse(status=404, body="Not Found.")
 
 	if token=="":
-	    return HTTPResponse(status=401, body="Unauthorised.")
+		return HTTPResponse(status=401, body="Unauthorised.")
 	elif token != auth_token:
 		log("Request to add downvote denied: unauthorised")
 		sleep(random.random())
@@ -839,6 +839,72 @@ def true_votes():
     except Exception as ex:
         log(f"Exception: {ex}")
         return HTTPResponse(body="Server error.", status=503, headers=None)
+
+
+## Archive download proxy routes
+## These forward requests to the Raspberry Pi file server, hiding its IP from end users.
+
+@route("/archive")
+def serve_archive_page():
+	return static_file("archive.html", root=server_folder)
+
+@route("/archive/files.json")
+def archive_files_json():
+	try:
+		pi_response = requests.get(
+			f"{pi_file_server_url}/api/files",
+			headers={"Authorization": pi_auth_token},
+			timeout=10
+		)
+	except requests.exceptions.ConnectionError:
+		return HTTPResponse(status=502, body='{"error": "Archive server is currently offline."}')
+	except requests.exceptions.Timeout:
+		return HTTPResponse(status=504, body='{"error": "Archive server timed out."}')
+	except requests.exceptions.RequestException as e:
+		log(f"Archive proxy error (file list): {e}")
+		return HTTPResponse(status=502, body='{"error": "Could not reach archive server."}')
+
+	if pi_response.status_code != 200:
+		return HTTPResponse(status=pi_response.status_code, body=pi_response.text)
+
+	response.content_type = "application/json"
+	return pi_response.text
+
+@route("/archive/download/<filename>")
+def archive_download(filename):
+	log(f"Archive download request: {filename} from {request.remote_addr}")
+
+	try:
+		pi_response = requests.get(
+			f"{pi_file_server_url}/api/download",
+			params={"file": filename},
+			headers={"Authorization": pi_auth_token},
+			stream=True,
+			timeout=300
+		)
+	except requests.exceptions.ConnectionError:
+		return HTTPResponse(status=502, body="Archive server is currently offline. Please try again later.")
+	except requests.exceptions.Timeout:
+		return HTTPResponse(status=504, body="Download timed out. Please try again later.")
+	except requests.exceptions.RequestException as e:
+		log(f"Archive proxy error (download {filename}): {e}")
+		return HTTPResponse(status=502, body="Could not reach archive server.")
+
+	if pi_response.status_code != 200:
+		return HTTPResponse(status=pi_response.status_code, body=pi_response.text)
+
+	response.content_type = "application/octet-stream"
+	content_disp = pi_response.headers.get("Content-Disposition", f'attachment; filename="{filename}"')
+	response.headers["Content-Disposition"] = content_disp
+	content_length = pi_response.headers.get("Content-Length")
+	if content_length:
+		response.headers["Content-Length"] = content_length
+
+	def stream():
+		for chunk in pi_response.iter_content(chunk_size=65536):
+			yield chunk
+
+	return stream()
 
 
 application = default_app()

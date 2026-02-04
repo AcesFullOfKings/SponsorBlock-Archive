@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>SponsorBlock Archive Downloads</title>
+	<style>
+		* {
+			box-sizing: border-box;
+		}
+		body {
+			margin: 0;
+			font-family: Arial, sans-serif;
+			background-color: #121212;
+			color: #ffffff;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+		}
+		.title-container {
+			width: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 20px;
+			padding: 20px;
+			background-color: #1f1f1f;
+			box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.4);
+		}
+		.title-container img {
+			height: 50px;
+		}
+		.title-container h1 {
+			margin: 0;
+			font-size: 24px;
+		}
+		.content {
+			width: 90%;
+			max-width: 1000px;
+			margin-top: 30px;
+			padding-bottom: 60px;
+		}
+		.section {
+			background: #1f1f1f;
+			border-radius: 8px;
+			box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.3);
+			padding: 24px;
+			margin-bottom: 24px;
+		}
+		.section h2 {
+			margin: 0 0 8px 0;
+			font-size: 20px;
+			color: #ffffff;
+		}
+		.section p.description {
+			margin: 0 0 16px 0;
+			color: #b0bec5;
+			font-size: 14px;
+			line-height: 1.5;
+		}
+		table {
+			width: 100%;
+			border-collapse: collapse;
+		}
+		thead th {
+			text-align: left;
+			padding: 10px 12px;
+			border-bottom: 2px solid #333;
+			color: #b0bec5;
+			font-size: 13px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+		tbody td {
+			padding: 10px 12px;
+			border-bottom: 1px solid #2a2a2a;
+			font-size: 14px;
+		}
+		tbody tr:hover {
+			background-color: #2a2a2a;
+		}
+		.size-cell {
+			white-space: nowrap;
+			font-family: monospace;
+		}
+		.date-cell {
+			white-space: nowrap;
+			color: #b0bec5;
+		}
+		a.download-link {
+			color: #64b5f6;
+			text-decoration: none;
+			font-weight: bold;
+		}
+		a.download-link:hover {
+			text-decoration: underline;
+			color: #90caf9;
+		}
+		.size-warning {
+			display: inline-block;
+			background: #ff98004d;
+			color: #ffb74d;
+			padding: 2px 8px;
+			border-radius: 4px;
+			font-size: 12px;
+			margin-left: 8px;
+		}
+		.loading-container {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			padding: 40px;
+			gap: 16px;
+		}
+		.spinner {
+			border: 4px solid #333333;
+			border-top: 4px solid #ffffff;
+			border-radius: 50%;
+			width: 32px;
+			height: 32px;
+			animation: spin 1s linear infinite;
+		}
+		@keyframes spin {
+			0% { transform: rotate(0deg); }
+			100% { transform: rotate(360deg); }
+		}
+		.error-banner {
+			background: #c628284d;
+			border: 1px solid #c62828;
+			color: #ef9a9a;
+			padding: 16px 20px;
+			border-radius: 8px;
+			text-align: center;
+			margin-bottom: 24px;
+			display: none;
+		}
+		.empty-message {
+			color: #666;
+			font-style: italic;
+			padding: 12px;
+		}
+		@media (max-width: 600px) {
+			.content {
+				width: 95%;
+			}
+			.section {
+				padding: 16px;
+			}
+			thead th, tbody td {
+				padding: 8px 6px;
+				font-size: 13px;
+			}
+		}
+	</style>
+</head>
+<body>
+
+<div class="title-container">
+	<a href="https://sponsor.ajay.app/">
+		<img src="https://sponsor.ajay.app/LogoSponsorBlockSimple256px.png" alt="SponsorBlock Logo">
+	</a>
+	<h1>SponsorBlock Archive</h1>
+</div>
+
+<div class="content">
+	<div id="error" class="error-banner"></div>
+
+	<div id="loading" class="loading-container">
+		<div class="spinner"></div>
+		<p>Loading file list...</p>
+	</div>
+
+	<div id="sections" style="display: none;">
+		<!-- Explainer -->
+		<div class="section">
+			<h2>About This Archive</h2>
+			<p class="description">
+				This archive contains compressed daily snapshots of the SponsorBlock database, converted from the
+				raw CSV exports into space-efficient SQLite databases. The data is split across two types of file:
+			</p>
+			<p class="description">
+				<strong>Daily files</strong> contain only the votes and views for every segment on that day.
+				To get complete segment data (video ID, timing, category, user, submission date, etc.),
+				you'll also need the <strong>static database</strong>, which is a master lookup table that maps
+				each segment's short integer ID to its full metadata. Download both, and you can join them
+				on the segment ID to get the full picture for any given day.
+			</p>
+			<p class="description">
+				A Python utility script,
+				<a class="download-link" id="helperLink" href="#">helper_functions.py</a>,
+				is available to help you query these databases. It provides functions for looking up segments,
+				users, and available dates. Just update the database path variables at the top of the file
+				to point to your local copies.
+			</p>
+			<p class="description">
+				The <strong>monthly archives</strong> (.7z) are the original, unmodified CSV files as exported
+				by SBServer (the SponsorBlock server). These are very large and are provided for completeness.
+			</p>
+		</div>
+
+		<!-- Static Database -->
+		<div class="section">
+			<h2>Static Database</h2>
+			<p class="description">
+				Master lookup table containing user IDs and segment metadata (video ID, timing, category, submission date).
+				This file grows over time as new segments are submitted. You only need one copy of this file.
+			</p>
+			<table>
+				<thead>
+					<tr>
+						<th>Filename</th>
+						<th>Size</th>
+						<th>Last Modified</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody id="staticBody"></tbody>
+			</table>
+		</div>
+
+		<!-- Daily Files -->
+		<div class="section">
+			<h2>Daily Files</h2>
+			<p class="description">
+				Daily snapshots of votes and views for every segment. Each file is a standalone SQLite database.
+				Use these together with the static database for complete segment data on a given day.
+			</p>
+			<table>
+				<thead>
+					<tr>
+						<th>Filename</th>
+						<th>Size</th>
+						<th>Last Modified</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody id="dailyBody"></tbody>
+			</table>
+		</div>
+
+		<!-- Monthly Archives -->
+		<div class="section">
+			<h2>Monthly Archives</h2>
+			<p class="description">
+				Original, unmodified CSV files as exported by SBServer, compressed into monthly .7z archives.
+				These are very large files — check the file size before downloading.
+			</p>
+			<table>
+				<thead>
+					<tr>
+						<th>Filename</th>
+						<th>Size</th>
+						<th>Last Modified</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody id="monthlyBody"></tbody>
+			</table>
+		</div>
+	</div>
+</div>
+
+<script>
+	function sizeWarningLabel(sizeBytes) {
+		const gb = sizeBytes / (1024 * 1024 * 1024);
+		if (gb >= 10) return "Large file";
+		return null;
+	}
+
+	function buildRow(file) {
+		const tr = document.createElement("tr");
+
+		const tdName = document.createElement("td");
+		tdName.textContent = file.filename;
+		tr.appendChild(tdName);
+
+		const tdSize = document.createElement("td");
+		tdSize.className = "size-cell";
+		tdSize.textContent = file.size_human;
+		const warning = sizeWarningLabel(file.size_bytes);
+		if (warning) {
+			const span = document.createElement("span");
+			span.className = "size-warning";
+			span.textContent = warning;
+			tdSize.appendChild(span);
+		}
+		tr.appendChild(tdSize);
+
+		const tdDate = document.createElement("td");
+		tdDate.className = "date-cell";
+		tdDate.textContent = file.last_modified;
+		tr.appendChild(tdDate);
+
+		const tdLink = document.createElement("td");
+		const a = document.createElement("a");
+		a.className = "download-link";
+		a.href = "/archive/download/" + encodeURIComponent(file.filename);
+		a.textContent = "Download";
+		tdLink.appendChild(a);
+		tr.appendChild(tdLink);
+
+		return tr;
+	}
+
+	function populateTable(bodyId, files) {
+		const tbody = document.getElementById(bodyId);
+		if (!files || files.length === 0) {
+			const tr = document.createElement("tr");
+			const td = document.createElement("td");
+			td.colSpan = 4;
+			td.className = "empty-message";
+			td.textContent = "No files available";
+			tr.appendChild(td);
+			tbody.appendChild(tr);
+			return;
+		}
+		for (const file of files) {
+			tbody.appendChild(buildRow(file));
+		}
+	}
+
+	async function loadFiles() {
+		const loading = document.getElementById("loading");
+		const sections = document.getElementById("sections");
+		const errorBanner = document.getElementById("error");
+
+		try {
+			const response = await fetch("/archive/files.json");
+			if (!response.ok) {
+				throw new Error(response.status === 502
+					? "The archive server is currently offline. Please try again later."
+					: "Failed to load file list (HTTP " + response.status + ")");
+			}
+
+			const data = await response.json();
+
+			populateTable("staticBody", data.static);
+			populateTable("dailyBody", data.daily);
+			populateTable("monthlyBody", data.monthly);
+
+			// Set helper_functions.py download link if available
+			if (data.tools && data.tools.length > 0) {
+				const helperLink = document.getElementById("helperLink");
+				helperLink.href = "/archive/download/" + encodeURIComponent(data.tools[0].filename);
+			}
+
+			loading.style.display = "none";
+			sections.style.display = "block";
+
+		} catch (err) {
+			loading.style.display = "none";
+			errorBanner.textContent = err.message || "Failed to load file list. The archive server may be offline.";
+			errorBanner.style.display = "block";
+		}
+	}
+
+	window.onload = loadFiles;
+</script>
+</body>
+</html>
