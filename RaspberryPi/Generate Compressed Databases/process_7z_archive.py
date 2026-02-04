@@ -158,7 +158,10 @@ def process_archive(archive_path: Path, force: bool = False):
 
     for i, csv_filename in enumerate(csv_files, 1):
         basename = Path(csv_filename).name
-        extracted_csv = None  # Initialize to ensure cleanup always works
+
+        # Compute expected CSV path before extraction attempt
+        # This allows cleanup even if extraction fails mid-way
+        expected_csv_path = temp_dir / basename
 
         try:
             # Extract date from filename
@@ -202,18 +205,19 @@ def process_archive(archive_path: Path, force: bool = False):
                 failed += 1
                 failed_files.append(basename)
 
-            finally:
-                # Always delete the extracted CSV to save space
-                if extracted_csv and extracted_csv.exists():
-                    extracted_csv.unlink()
-                    print(f"  Deleted extracted CSV")
-
         except Exception as e:
             # Extraction or other error
             print(f"  FAILED: {basename} - {str(e)}")
             log_error(error_log_path, basename, str(e))
             failed += 1
             failed_files.append(basename)
+
+        finally:
+            # Always ensure CSV cleanup happens, even if extraction failed
+            # Check expected path in case 7z created a partial file before failing
+            if expected_csv_path.exists():
+                expected_csv_path.unlink()
+                print(f"  Deleted extracted CSV")
 
         print()
 

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Leaderboard</title>
+        <link id="cssnorm" rel="stylesheet" type="text/css" href="leaderboardStyles.css?version=1.0" />
+        <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+    </head>
+    <body>
+        <header>
+            <div class="title-container">
+                <div class="logo-text-container">
+                    <a href="https://sponsor.ajay.app/">
+                        <img class="SBlogo" src="https://sponsor.ajay.app/LogoSponsorBlockSimple256px.png" />
+                    </a>
+                    <h1>SponsorBlock Leaderboard</h1>
+                </div>
+                <div class="date-picker-toggle-container">
+                    <div class="datePicker">
+                        <input type="text" id="datePicker" readonly />
+                        <button type="button" class="calendar-icon" onclick="$('#datePicker').datepicker('show');" title="View historic data as at a previous date">
+                            <i class="fa-solid fa-calendar"></i>
+                        </button>
+                    </div>
+                    <div class="toggle-container">
+                        <div class="toggle-switch">
+                            <label>
+                                <input id="cb" type="checkbox" />
+                                <span class="slider"></span>
+                                <span class="icon"><i class="fa-solid fa-moon"></i></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="all-content">
+            <div class="top-container">
+                <table class="globalStats">
+                    <tr>
+                        <th colspan="2" style="text-align: center; width: 160px;">
+                            Global Stats
+                        </th>
+                    </tr>
+                    <tr title="Number of users with at least one non-removed segment">
+                        <td style="text-align: left;">Contributing Users:</td>
+                        <td class="global_users" style="text-align: left;"></td>
+                    </tr>
+                    <tr title="All segments, of all categories, removed and non-removed">
+                        <td style="text-align: left;">Total Submissions:</td>
+                        <td class="global_submissions" style="text-align: left;"></td>
+                    </tr>
+                    <tr title="Time saved across non-removed, skippable segments">
+                        <td style="text-align: left;">Time Saved:</td>
+                        <td class="global_time" style="text-align: left;"></td>
+                    </tr>
+                    <tr title="Number of skips on non-removed, skippable segments">
+                        <td style="text-align: left;">Total Skips:</td>
+                        <td class="global_skips" style="text-align: left;"></td>
+                    </tr>
+                    <tr title="Number of segments which have been removed, either by user votes or by a VIP">
+                        <td style="text-align: left;">Removed Segments:</td>
+                        <td class="global_removed" style="text-align: left;"></td>
+                    </tr>
+                </table>
+            </div>
+            <table class="leaderboard">
+                <tr>
+                    <th>Rank</th>
+                    <th title="UserID is shown where the username is not set.">
+                        Username
+                    </th>
+                    <th>
+                        <a class="hiddenlink" title="Click to sort by submissions. Only counts non-removed segments." href="#" onclick="sortTable('submissions')">Submissions</a>
+                    </th>
+                    <th>
+                        <a class="hiddenlink" title="Click to sort by skips. Skips only count if the segment is not removed." href="#" onclick="sortTable('skips')">Total Skips</a>
+                    </th>
+                    <th>
+                        <a class="hiddenlink" title="Click to sort by time saved. Time Saved is the sum of views*duration across non-removed skippable segments." href="#" onclick="sortTable('saved')">Time Saved</a>
+                    </th>
+                    <th>
+                        <a class="hiddenlink" title="Click to sort by net votes. Net Votes is the sum of upvotes and downvotes on segments submitted after September 2020." href="#" onclick="sortTable('votes')">Net Votes</a>
+                    </th>
+                </tr>
+            </table>
+            <div class="attribution">
+                Leaderboard by AcesFullOfKings, with help from a funion.<br>Leaderboard data was last updated {{last_updated}} UTC. This page uses SponsorBlock data licensed under
+                <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>
+                from <a href="https://sponsor.ajay.app/">https://sponsor.ajay.app/</a>.
+            </div>
+        </div>
+        <script src="script.js"></script>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+        <script src="https://kit.fontawesome.com/e08acc423f.js" crossorigin="anonymous"></script>
+    </body>
+</html>

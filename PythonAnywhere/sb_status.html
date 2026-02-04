@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>API Status Monitor</title>
+	<style>
+		* {
+			box-sizing: border-box;
+		}
+		body {
+			margin: 0;
+			font-family: Arial, sans-serif;
+			background-color: #121212;
+			color: #ffffff;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+		}
+		.title-container {
+			width: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 20px;
+			background-color: #1f1f1f;
+			box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.4);
+		}
+		.title-container img {
+			height: 50px;
+		}
+		.title-container h1 {
+			margin: 0;
+			font-size: 24px;
+		}
+		.title-container .homeButton {
+			padding: 10px 20px;
+			color: #ffffff;
+			background-color: #333333;
+			border: 1px solid #4a4a4a;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 16px;
+			text-decoration: none;
+			transition: background-color 0.3s;
+		}
+		.title-container .homeButton:hover {
+			background-color: #4a4a4a;
+		}
+		.container {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 20px;
+			margin-top: 40px;
+			padding: 20px;
+			background: #1f1f1f;
+			border-radius: 8px;
+			box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.3);
+			width: 90%;
+			max-width: 800px;
+		}
+		.box {
+			flex: 1 1 250px;
+			min-width: 250px;
+			height: 160px;
+			padding: 20px;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			border-radius: 8px;
+			background-color: #333333;
+			color: #ffffff;
+			font-size: 16px;
+			text-align: center;
+			position: relative;
+			box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+			overflow: hidden;
+		}
+		.box-label {
+			font-weight: bold;
+			margin-bottom: 8px;
+			color: #b0bec5;
+			text-align: center;
+			width: 100%;
+		}
+		.box p {
+			margin: 8px 0;
+			word-wrap: break-word;
+		}
+		.success {
+			background-color: #2e7d32;
+		}
+		.failure {
+			background-color: #c62828;
+		}
+		.spinner {
+			border: 4px solid #333333;
+			border-top: 4px solid #ffffff;
+			border-radius: 50%;
+			width: 24px;
+			height: 24px;
+			animation: spin 1s linear infinite;
+		}
+		@keyframes spin {
+			0% { transform: rotate(0deg); }
+			100% { transform: rotate(360deg); }
+		}
+		@media (max-width: 600px) {
+			.container {
+				flex-direction: column;
+				align-items: center;
+			}
+		}
+	</style>
+</head>
+<body>
+
+<div class="title-container">
+	<a href="https://sponsor.ajay.app/">
+		<img class="SBlogo" src="https://sponsor.ajay.app/LogoSponsorBlockSimple256px.png" alt="SponsorBlock Logo">
+	</a>
+	<h1>SponsorBlock API Status</h1>
+	<a href="https://leaderboard.sbstats.uk" class="homeButton">Leaderboard</a>
+</div>
+
+<div class="container">
+	<div id="serverBox" class="box">
+		<div class="box-label">Server Ping Result</div>
+		<div id="serverSpinner" class="spinner"></div>
+		<p>Waiting for response...</p>
+	</div>
+	<div id="clientBox" class="box">
+		<div class="box-label">Client Ping Result</div>
+		<div id="clientSpinner" class="spinner"></div>
+		<p>Waiting for response...</p>
+	</div>
+</div>
+
+<script>
+	async function checkServerStatus() {
+		const serverBox = document.getElementById('serverBox');
+		const serverSpinner = document.getElementById('serverSpinner');
+
+		try {
+			const response = await fetch('/api/SB_api_test');
+			const data = await response.json();
+
+			serverBox.classList.add(data.success ? 'success' : 'failure');
+			serverBox.innerHTML = `<div class="box-label">Server Ping Result</div>
+									<p>${data.success ? 'API is up!' : 'API is down'}</p>
+									<p>Code: ${data.code}</p>
+									<p>Time: ${Math.round(data.time_taken_ms)} ms</p>`;
+		} catch (error) {
+			serverBox.classList.add('failure');
+			serverBox.innerHTML = `<div class="box-label">Server Ping Result</div>
+								   <p>Error: Could not connect to server</p>`;
+		} finally {
+			serverSpinner.style.display = 'none';
+		}
+	}
+
+	async function checkClientStatus() {
+		const clientBox = document.getElementById('clientBox');
+		const clientSpinner = document.getElementById('clientSpinner');
+		const sponsorblockUrl = 'https://sponsor.ajay.app/api/skipSegments?videoID=dQw4w9WgXcQ&categories=["poi_highlight"]';
+
+		try {
+			const startTime = performance.now();
+			const response = await fetch(sponsorblockUrl);
+			const timeTaken = performance.now() - startTime;
+			const success = response.status === 200;
+
+			clientBox.classList.add(success ? 'success' : 'failure');
+			clientBox.innerHTML = `<div class="box-label">Client Ping Result</div>
+								   <p>${success ? 'API is up!' : 'API is down'}</p>
+								   <p>Code: ${response.status}</p>
+								   <p>Time: ${Math.round(timeTaken)} ms</p>`;
+		} catch (error) {
+			clientBox.classList.add('failure');
+			clientBox.innerHTML = `<div class="box-label">Client Ping Result</div>
+								   <p>Error: Could not connect to SponsorBlock</p>`;
+		} finally {
+			clientSpinner.style.display = 'none';
+		}
+	}
+
+	window.onload = function() {
+		checkServerStatus();
+		checkClientStatus();
+	};
+</script>
+</body>
+</html>

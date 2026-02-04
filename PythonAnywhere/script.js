@@ -1,0 +1,336 @@
+function setCookie(name, value, days = 3650) {
+	var expires = "";
+	if (days) {
+	  var date = new Date();
+	  date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
+	  expires = "; expires=" + date.toUTCString();
+	}
+	document.cookie = name + "=" + (value || "") + expires + "; path=/";
+  }
+
+  function getCookie(name) {
+	var nameEQ = name + "=";
+	var ca = document.cookie.split(";");
+	for (var i = 0; i < ca.length; i++) {
+	  var c = ca[i];
+	  while (c.charAt(0) == " ") c = c.substring(1, c.length);
+	  if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+	}
+	return null;
+  }
+
+  function updateGlobalStats() {
+	fetch("global_stats.json")
+	  .then((response) => response.json())
+	  .then((data) => {
+		populateGlobalStats(data);
+	  })
+	  .catch((error) => console.error("Error fetching global stats:", error));
+  }
+
+  function populateGlobalStats(data) {
+	// Convert time saved from seconds to years and days
+	const secondsInAYear = 60 * 60 * 24 * 365;
+	const secondsInADay = 60 * 60 * 24;
+
+	const global_years = Math.floor(data.overall_time_saved / secondsInAYear);
+	const global_days = Math.floor(
+	  (data.overall_time_saved % secondsInAYear) / secondsInADay
+	);
+
+	// Populate the table with data
+	document.querySelector("td.global_users").textContent =
+	  data.contributing_users.toLocaleString();
+	document.querySelector("td.global_submissions").textContent =
+	  data.overall_submissions.toLocaleString();
+    document.querySelector(
+		"td.global_time"
+	).textContent = `${global_years.toLocaleString()}y ${global_days}d`;
+	document.querySelector("td.global_skips").textContent =
+	  data.overall_skips.toLocaleString();
+	document.querySelector("td.global_removed").textContent =
+	  data.removed_submissions.toLocaleString();
+  }
+
+  let leaderboardData = [];
+
+  // Function to fetch and populate the user stats table
+  function populateLeaderboard(sortBy = "submissions") {
+	if (leaderboardData.length === 0) {
+	  fetch("/leaderboard.json")
+		.then((response) => response.json())
+		.then((data) => {
+		  leaderboardData = data;
+		  updateLeaderboard(sortBy);
+		})
+		.catch((error) => console.error("Error fetching user stats:", error));
+	} else {
+	  updateLeaderboard(sortBy);
+	}
+  }
+
+  function updateLeaderboard(sortBy) {
+	// Sort the data based on the selected column
+	leaderboardData.sort((a, b) => b[sortBy] - a[sortBy]);
+
+	// Get the top 200 users
+	const top200Users = leaderboardData.slice(0, 200);
+
+	// Clear the existing table rows
+	const leaderboardTable = document.querySelector("table.leaderboard");
+	leaderboardTable.innerHTML = `
+		  <tr>
+			  <th>Rank</th>
+			  <th title="UserID is shown where the username is not set." style="text-align: left">Username</th>
+			  <th><a class="hiddenlink" title="Click to sort by submissions. Only counts non-removed segments." href="#" onclick="sortTable('submissions')">Submissions</a></th>
+			  <th><a class="hiddenlink" title="Click to sort by skips. Skips only count if the segment is not removed." href="#" onclick="sortTable('skips')">Total Skips</a></th>
+			  <th><a class="hiddenlink" title="Click to sort by time saved. Time Saved is the sum of views*duration across non-removed skippable segments." href="#" onclick="sortTable('saved')">Time Saved</a></th>
+			  <th><a class="hiddenlink" title="Click to sort by net votes. Net Votes is the sum of upvotes and downvotes on segments submitted after September 2020." href="#" onclick="sortTable('votes')">Net Votes</a></th>
+		  </tr>
+	  `;
+
+	  // Populate the table with the sorted data
+	  top200Users.forEach((user, index) => {
+	  const row = document.createElement("tr");
+
+	  // Rank
+	  const rankCell = document.createElement("td");
+	  rankCell.textContent = index + 1;
+	  row.appendChild(rankCell);
+
+	  // Username with hyperlink
+	  const usernameCell = document.createElement("td");
+	  usernameCell.style = "text-align: left";
+	  const usernameLink = document.createElement("a");
+	  usernameLink.href = `https://sb.ltn.fi/userid/${user.ID}`;
+
+	  if (user.name == ""){
+	      user.name = user.ID;
+	  }
+
+	  if (user.name.length > 20 && !user.name.includes(" ")) {
+		// good enough heuristic for long usernames which won't split over two lines
+		let halfLength = Math.floor(user.name.length / 2);
+		username =
+		  user.name.slice(0, halfLength) + "\u200B" + user.name.slice(halfLength); // zero-width space inserted halfway so it can span two lines
+	  } else {
+		username = user.name;
+	  }
+
+      // no fake VIPs lol
+	  if (username.endsWith("⭐")){
+	      username = username.replaceAll("⭐", "");
+	  }
+
+	  usernameLink.textContent = username;
+	  usernameCell.appendChild(usernameLink);
+
+	  if (user.vip) {
+	    const vipEmoji = document.createElement('span');
+	    vipEmoji.textContent = ' ⭐';
+	    vipEmoji.title = 'This user is a VIP.';
+	    usernameCell.appendChild(vipEmoji);
+	  }
+
+	  row.appendChild(usernameCell);
+
+	  // Submissions
+	  const submissionsCell = document.createElement("td");
+	  submissionsCell.textContent = user.submissions.toLocaleString();
+	  row.appendChild(submissionsCell);
+
+	  // Total Skips
+	  const skipsCell = document.createElement("td");
+	  skipsCell.textContent = user.skips.toLocaleString();
+	  row.appendChild(skipsCell);
+
+	  // Time Saved (two most significant intervals)
+	  const timeSavedCell = document.createElement("td");
+	  const timeSaved = formatTimeSaved(user.saved);
+	  timeSavedCell.textContent = timeSaved;
+	  row.appendChild(timeSavedCell);
+
+	  // Net Votes
+	  const votesCell = document.createElement("td");
+	  votesCell.textContent = user.votes.toLocaleString();
+	  row.appendChild(votesCell);
+
+	  // Append the row to the table
+	  leaderboardTable.appendChild(row);
+	});
+	let theme = localStorage.getItem("theme");
+	if (theme == "light") {
+	  leaderboardTable.querySelectorAll("*").forEach((elem) => {
+		elem.classList.add("light");
+	  });
+	}
+  }
+
+  // Helper function to format time saved
+  function formatTimeSaved(seconds) {
+	if (seconds < 60) {
+	  return `${seconds}s`;
+	}
+	const intervals = [
+	  { label: "y", seconds: 31536000 }, // 1 year, ish (365*86400, close enough)
+	  { label: "d", seconds: 86400 }, // 1 day
+	  { label: "h", seconds: 3600 }, // 1 hour
+	  { label: "m", seconds: 60 }, // 1 minute
+	];
+
+	let remainingSeconds = seconds;
+	const result = [];
+
+	for (const interval of intervals) {
+	  const intervalCount = Math.floor(remainingSeconds / interval.seconds);
+	  if (intervalCount > 0) {
+		result.push(`${intervalCount}${interval.label}`);
+		remainingSeconds %= interval.seconds;
+	  }
+	  if (result.length === 2) break; // Get only the two most significant intervals
+	}
+
+	return result.join(" ");
+  }
+
+  // Function to sort the table by the specified column
+  function sortTable(sortBy) {
+	populateLeaderboard(sortBy);
+  }
+
+  function populateLeaderboardFromDate(date) {
+	// Add a timestamp to the URL to prevent caching
+	const url = `leaderboard.json?timestamp=${new Date().getTime()}&file-date=${date}`;
+	fetch(url)
+	  .then((response) => {
+		if (!response.ok) {
+		  throw new Error(`No data found for ${date}`);
+		}
+		return response.json();
+	  })
+	  .then((data) => {
+		leaderboardData = data;
+		updateLeaderboard("submissions");
+	  })
+	  .catch((error) => {
+		console.error("Error fetching leaderboard data for date:", error);
+	  });
+  }
+
+  function populateGlobalStatsFromDate(date) {
+	// Add a timestamp to the URL to prevent caching
+	const url = `global_stats.json?timestamp=${new Date().getTime()}&file-date=${date}`;
+	fetch(url)
+	  .then((response) => {
+		if (!response.ok) {
+		  throw new Error(`No Global data found for ${date}`);
+		}
+		return response.json();
+	  })
+	  .then((data) => {
+		populateGlobalStats(data);
+	  })
+	  .catch((error) => {
+		console.error("Error fetching Global data for date:", error);
+	  });
+  }
+
+  function updatePageDate(dataDate) {
+	populateLeaderboardFromDate(dataDate);
+	populateGlobalStatsFromDate(dataDate);
+  }
+
+  async function fetchAvailableDates() {
+	try {
+	  const response = await fetch("/available_dates.json");
+	  if (!response.ok) {
+		throw new Error("Failed to fetch available dates");
+	  }
+	  const datesUnformatted = await response.json();
+	  const dates = JSON.parse(JSON.stringify(datesUnformatted));
+	  // Convert the dates to JavaScript Date objects
+	  return dates.map((dateStr) => new Date(dateStr));
+	} catch (error) {
+	  console.error("Error fetching available dates:", error);
+	  return [];
+	}
+  }
+
+  // Function to initialize the date picker with the available dates
+  function initialiseDatePicker(availableDates) {
+	$("#datePicker").datepicker({
+		dateFormat: "yy-mm-dd", // Specify the date format as yyyy-mm-dd
+		firstDay: 1,
+		changeMonth: true,
+		changeYear: true,
+		yearRange: "2021:c",
+		defaultDate: new Date(),
+	  beforeShowDay: function (date) {
+		const dateString = $.datepicker.formatDate("yy-mm-dd", date);
+		// Check if the date is available in the list of available dates
+		const isAvailable = availableDates.some(
+		  (availableDate) =>
+			$.datepicker.formatDate("yy-mm-dd", availableDate) === dateString
+		);
+		// Enable or disable the date based on availability
+		return [isAvailable];
+	  },
+	  onSelect: function (selectedDate) {
+		// Will now log in yyyy-mm-dd format
+		// When the user selects a date, reload the leaderboard and global stats
+		updatePageDate(selectedDate); // Use the selected date in yyyy-mm-dd format
+	  },
+	});
+  }
+
+  window.onload = async function () {
+	let theme = localStorage.getItem("theme");
+	var modetoggle = document.querySelector("#cb");
+	if (theme == null || theme == "dark") {
+	  theme = "dark";
+	  modetoggle.checked = false;
+	}
+	if (theme == "light") {
+	  modetoggle.checked = true;
+	}
+
+	var icon = document.querySelector(".icon i");
+	icon.classList.toggle("fa-moon", !modetoggle.checked);
+	icon.classList.toggle("fa-sun", modetoggle.checked);
+
+	// Get all elements on the page
+	var allElements = document.querySelectorAll("*");
+
+	// Toggle the light class on each element
+	allElements.forEach(function (element) {
+	  element.classList.toggle("light", modetoggle.checked);
+	});
+	const availableDates = await fetchAvailableDates();
+	updatePageDate(
+	  availableDates[availableDates.length - 1].toISOString().slice(0, 10)
+	);
+
+	initialiseDatePicker(availableDates);
+  };
+
+  var modetoggle = document.querySelector("#cb");
+
+  modetoggle.addEventListener("click", function () {
+	let theme = localStorage.getItem("theme");
+	if (theme == "light") {
+	  localStorage.setItem("theme", "dark");
+	} else {
+	  localStorage.setItem("theme", "light");
+	}
+	var icon = document.querySelector(".icon i");
+	icon.classList.toggle("fa-moon", !this.checked);
+	icon.classList.toggle("fa-sun", this.checked);
+
+	// Get all elements on the page
+	var allElements = document.querySelectorAll("*");
+
+	// Toggle the light class on each element
+	allElements.forEach(function (element) {
+	  element.classList.toggle("light", modetoggle.checked);
+	});
+  });

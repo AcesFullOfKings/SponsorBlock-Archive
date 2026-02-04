@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Failed Downvotes Leaderboard</title>
+	<link id="cssnorm" rel="stylesheet" type="text/css" href="leaderboardStyles.css"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css" />
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+	<script src="https://kit.fontawesome.com/e08acc423f.js" crossorigin="anonymous"></script>
+</head>
+<body>
+	<header>
+		<div class="title-container">
+			<div class="logo-text-container">
+				<a href="https://sponsor.ajay.app/">
+				    <img class="SBlogo" src="https://sponsor.ajay.app/LogoSponsorBlockSimple256px.png"/>
+				</a>
+				<h1>Failed Downvote Leaderboard</h1>
+			</div>
+			<div class="datePickers">
+				<div class="datePickerContainer">
+					<label for="datePickerAfter">After:</label>
+					<div class="datePickerAfter">
+						<input type="text" id="datePickerAfter" readonly />
+						<button type="button" class="calendar-icon" onclick="$('#datePickerAfter').datepicker('show');" title="Data after this date is shown.">
+							<i class="fa-solid fa-calendar"></i>
+						</button>
+					</div>
+					<p id="selectedAfterDate" class="selected-date"></p>
+				</div>
+				<div class="datePickerContainer">
+					<label for="datePickerBefore">Before:</label>
+					<div class="datePickerBefore">
+						<input type="text" id="datePickerBefore" readonly />
+						<button type="button" class="calendar-icon" onclick="$('#datePickerBefore').datepicker('show');" title="Data before this date is shown.">
+							<i class="fa-solid fa-calendar"></i>
+						</button>
+					</div>
+					<p id="selectedBeforeDate" class="selected-date"></p>
+				</div>
+			</div>
+		</div>
+	</header>
+
+	<div class="all-content">
+		<table class="leaderboard">
+			<tr>
+				<th>Rank</th>
+				<th>UserID</th>
+				<th>Total Downvotes</th>
+				<th><a class="hiddenlink" title="Click to see segments leaderboard." href="#" onclick="populateSegmentsLeaderboard()">Most-Downvoted Segment</a></th>
+			</tr>
+		</table>
+		<p id="noDataMessage" style="display: none; color: white; text-align: center; font-size: 1.2em;">
+	        No data available for the selected date range.
+        </p>
+		<div class="attribution">
+			Leaderboard data is updated periodically. This page uses SponsorBlock data licensed used under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a> from <a href="https://sponsor.ajay.app/">https://sponsor.ajay.app/</a>.
+		</div>
+	</div>
+	<script>
+		let leaderboardData = [];
+		const categoryColours = {
+		    sponsor: "#00D400",
+		    selfpromo: "#FFFF00",
+		    interaction: "#CC00FF",
+		    poi_highlight: "#E20ABE",
+		    intro: "#00FFFF",
+		    outro: "#0202ED",
+		    preview: "#008FD6",
+		    filler: "#7300FF",
+		    music_offtopic: "#FF9900",
+		    exclusive_access: "#008A5C"
+		};
+
+		function populateUsersLeaderboard() {
+			// Check if the user has manually selected dates
+			var afterDateObj = $("#datePickerAfter").datepicker("getDate");
+			var beforeDateObj = $("#datePickerBefore").datepicker("getDate");
+
+			// Determine the endpoint based on whether dates were selected
+			let endpoint = "/api/downvote_leaderboard_users.json"; // Default to full endpoint
+
+			if (!(afterDateObj === null && beforeDateObj === null)) {
+				if (afterDateObj === null) {
+					afterDateObj = new Date("2021-06-09");
+				}
+
+				if (beforeDateObj === null) {
+					beforeDateObj = new Date();
+				}
+				// User has manually selected both dates; format them as yyyy-mm-dd
+				const afterDate = afterDateObj.toISOString().split("T")[0];
+				const beforeDate = beforeDateObj.toISOString().split("T")[0];
+
+				// Use new endpoint with query parameters
+				endpoint = `/api/downvotes_between.json?after=${afterDate}&before=${beforeDate}`;
+			}
+
+			// Fetch data from the determined endpoint
+			return fetch(endpoint)
+				.then((response) => response.json())
+				.then((data) => {
+					leaderboardData = data;
+					updateUserLeaderboard();
+				})
+				.catch((error) => console.error("Error fetching users leaderboard:", error));
+		}
+
+
+		function updateUserLeaderboard() {
+			const leaderboardTable = document.querySelector("table.leaderboard");
+	        const messageContainer = document.getElementById("noDataMessage");
+
+        	if (leaderboardData.length === 0) {
+        		leaderboardTable.style.display = "none";
+        		messageContainer.style.display = "block";
+        		return;
+        	}
+            leaderboardTable.style.display = "table";
+            messageContainer.style.display = "none";
+
+
+
+			leaderboardTable.innerHTML = `
+				<tr>
+					<th>Rank</th>
+					<th><a class="hiddenlink" title="Click to see users leaderboard." href="#">Username</a></th>
+					<th>Failed Downvotes</th>
+					<th><a class="hiddenlink" title="Click to see segments leaderboard." href="#" onclick="populateSegmentsLeaderboard()">Most-Downvoted Segment</a></th>
+				</tr>
+			`;
+			leaderboardData.forEach((user, index) => {
+				const row = document.createElement("tr");
+
+				const rankCell = document.createElement("td");
+				rankCell.textContent = index + 1;
+				row.appendChild(rankCell);
+
+				const userCell = document.createElement("td");
+
+				const usernameLink = document.createElement('a');
+				userCell.style = "text-align: left";
+				usernameLink.href = `https://sb.ltn.fi/userid/${user.userID}`;
+
+				if (user.display_name.length > 20 && !user.display_name.includes(" ")) { // good enough heuristic for long usernames which won't split over two lines
+					let halfLength = Math.floor(user.display_name.length / 2);
+					username = user.display_name.slice(0, halfLength) + "\u200B" + user.display_name.slice(halfLength); // zero-width space inserted halfway so it can span two lines
+				} else {
+				username = user.display_name;
+				}
+
+				usernameLink.textContent = username;
+				userCell.appendChild(usernameLink);
+
+                if (user.vip) {
+                    const vipEmoji = document.createElement('span');
+                    vipEmoji.textContent = ' ⭐';
+                    vipEmoji.title = 'This user is a VIP.';
+                    userCell.appendChild(vipEmoji);
+                }
+
+                row.appendChild(userCell);
+
+				const downvotesCell = document.createElement("td");
+				downvotesCell.textContent = user.total_downvotes.toLocaleString();
+				row.appendChild(downvotesCell);
+
+				const segmentCell = document.createElement("td");
+				const segmentLink = document.createElement('a');
+				segmentLink.href = `https://sb.ltn.fi/uuid/${user.most_downvoted}`;
+				segmentLink.textContent = `${user.most_downvoted.slice(0,3)}...${user.most_downvoted.slice(-3)}`;
+
+				segmentCell.appendChild(segmentLink);
+
+				const voteCount = document.createElement("span");
+				voteCount.textContent = ` (${user.most_downvoted_count.toLocaleString()})`;
+				voteCount.title = "Number of failed downvotes on this segment";
+
+				const colourSquare = document.createElement("span");
+
+				colourSquare.style.display = "inline-block";
+				colourSquare.style.width = "12px";
+				colourSquare.style.height = "12px";
+				colourSquare.style.backgroundColor = categoryColours[user.category];
+				colourSquare.style.marginLeft = "6px";
+				colourSquare.title = user.category;
+
+				segmentCell.appendChild(colourSquare);
+				segmentCell.appendChild(voteCount);
+
+				row.appendChild(segmentCell);
+
+				leaderboardTable.appendChild(row);
+			});
+		}
+
+		function populateSegmentsLeaderboard() {
+			fetch("/api/downvote_leaderboard_segments.json")
+				.then((response) => response.json())
+				.then((data) => {
+					leaderboardData = data;
+					updateSegmentLeaderboard();
+				})
+				.catch((error) => console.error("Error fetching segments leaderboard:", error));
+		}
+
+		function updateSegmentLeaderboard() {
+			const leaderboardTable = document.querySelector("table.leaderboard");
+			leaderboardTable.innerHTML = `
+				<tr>
+					<th>Rank</th>
+					<th><a class="hiddenlink" title="Click to see users leaderboard." href="#" onclick="populateUsersLeaderboard()">Username</a></th>
+					<th>Failed Downvotes</th>
+					<th><a class="hiddenlink" title="Click to see segments leaderboard." href="#">SegmentID</a></th>
+				</tr>
+			`;
+
+			leaderboardData.forEach((segment, index) => {
+				const row = document.createElement("tr");
+
+				// RANK
+
+				const rankCell = document.createElement("td");
+				rankCell.textContent = index + 1;
+				row.appendChild(rankCell);
+
+				//USERNAME
+
+				const userCell = document.createElement("td");
+
+				const usernameLink = document.createElement('a');
+				usernameLink.href = `https://sb.ltn.fi/userid/${segment.userID}`;
+
+				if (segment.display_name.length > 20 && !segment.display_name.includes(" ")) { // good enough heuristic for long usernames which won't split over two lines
+					let halfLength = Math.floor(segment.display_name.length / 2);
+					username = segment.display_name.slice(0, halfLength) + "\u200B" + segment.display_name.slice(halfLength); // zero-width space inserted halfway so it can span two lines
+				} else {
+					username = segment.display_name;
+				}
+
+				usernameLink.textContent = username;
+				userCell.appendChild(usernameLink);
+
+                if (segment.vip) {
+                    const vipEmoji = document.createElement('span');
+                    vipEmoji.textContent = ' ⭐';
+                    vipEmoji.title = 'This user is a VIP.';
+                    userCell.appendChild(vipEmoji);
+                }
+
+                row.appendChild(userCell);
+
+				// VOTES
+
+				const voteCell = document.createElement("td");
+				voteCell.textContent = segment.votes;
+				row.appendChild(voteCell);
+
+				// SEGMENTID
+
+				const segmentCell = document.createElement("td");
+				const segmentLink = document.createElement('a');
+				segmentLink.href = `https://sb.ltn.fi/uuid/${segment.segmentID}`;
+				segmentLink.textContent = `${segment.segmentID.slice(0,3)}...${segment.segmentID.slice(-3)}`;
+
+				const colourSquare = document.createElement("span");
+
+				colourSquare.style.display = "inline-block";
+				colourSquare.style.width = "12px";
+				colourSquare.style.height = "12px";
+				colourSquare.style.backgroundColor = categoryColours[segment.category];
+				colourSquare.style.marginLeft = "6px";
+				colourSquare.title = segment.category;
+
+				segmentCell.appendChild(segmentLink);
+				segmentCell.appendChild(colourSquare);
+
+				row.appendChild(segmentCell);
+
+
+				leaderboardTable.appendChild(row);
+			});
+		}
+
+		// Function to initialize the date picker with the available dates
+		function initialiseDatePickers(availableDates) {
+			$("#datePickerBefore").datepicker({
+				dateFormat: "yy-mm-dd", // Specify the date format as yyyy-mm-dd
+				firstDay: 1,
+				changeMonth: true,
+				changeYear: true,
+				yearRange: "2021:c",
+				minDate: new Date("2021-06-09"),
+				maxDate: new Date(),
+				defaultDate: new Date(), // Initialise to today
+
+				onSelect: function (selectedDate) {
+					$('body').addClass('waiting');
+					$("#selectedBeforeDate").text(selectedDate);
+					populateUsersLeaderboard().then(() => {
+						// Once the leaderboard is populated, remove the class
+						$('body').removeClass('waiting');
+                    });
+					updateDatePickers();
+				},
+			});
+			$("#datePickerAfter").datepicker({
+				dateFormat: "yy-mm-dd", // Specify the date format as yyyy-mm-dd
+				firstDay: 1,
+				changeMonth: true,
+				changeYear: true,
+				yearRange: "2021:c",
+				minDate: new Date("2021-06-09"),
+				maxDate: new Date(),
+				defaultDate: new Date(),
+				onSelect: function (selectedDate) {
+					$('body').addClass('waiting');
+					$("#selectedAfterDate").text(selectedDate);
+					populateUsersLeaderboard().then(() => {
+						// Once the leaderboard is populated, remove the class
+						$('body').removeClass('waiting');
+                    });
+					updateDatePickers()
+				},
+			});
+		}
+
+		// Function to update the date pickers based on selected dates
+		function updateDatePickers() {
+			// Get the selected dates
+			let selectedBeforeDate = $("#datePickerBefore").datepicker("getDate");
+			let selectedAfterDate = $("#datePickerAfter").datepicker("getDate");
+
+			if (selectedBeforeDate === null){
+				selectedBeforeDate = new Date();
+			}
+
+			if (selectedAfterDate === null){
+				selectedAfterDate = new Date("2021-06-09");
+			}
+
+			$("#datePickerAfter").datepicker("option", "maxDate", selectedBeforeDate);
+			$("#datePickerBefore").datepicker("option", "minDate", selectedAfterDate);
+		}
+
+		window.onload = function () {
+			const params = new URLSearchParams(window.location.search);
+
+			const sort = params.get('sort');
+			if (sort === 'segments') {
+				populateSegmentsLeaderboard();
+			} else {
+				populateUsersLeaderboard();
+			}
+
+			initialiseDatePickers();
+		};
+	</script>
+</body>
+</html>
