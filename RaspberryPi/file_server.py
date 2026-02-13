@@ -12,11 +12,12 @@ All endpoints require a Bearer token in the Authorization header.
 import os
 import re
 import json
+import mimetypes
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-from config import ARCHIVE_PATH, DAILY_FILES_DIR, MONTHLY_ARCHIVES_DIR, AUTH_TOKEN, PORT, HELPER_FUNCTIONS_PATH
+from config import ARCHIVE_PATH, DAILY_FILES_DIR, MONTHLY_ARCHIVES_DIR, PUBLIC_FILES_DIR, AUTH_TOKEN, PORT, HELPER_FUNCTIONS_PATH
 
 CHUNK_SIZE = 64 * 1024  # 64KB
 
@@ -53,6 +54,11 @@ def resolve_filepath(filename):
 
     if MONTHLY_PATTERN.match(filename):
         return os.path.join(ARCHIVE_PATH, MONTHLY_ARCHIVES_DIR, filename)
+
+    # Public files: any file directly in the public directory
+    public_path = os.path.join(PUBLIC_FILES_DIR, filename)
+    if os.path.isfile(public_path):
+        return public_path
 
     return None
 
@@ -103,6 +109,20 @@ def get_all_files():
     return result
 
 
+def get_public_files():
+    """Scan the public files directory and return metadata for all top-level files."""
+    files = []
+    if not os.path.isdir(PUBLIC_FILES_DIR):
+        return files
+    for entry in sorted(os.listdir(PUBLIC_FILES_DIR)):
+        if entry.startswith("."):
+            continue
+        path = os.path.join(PUBLIC_FILES_DIR, entry)
+        if os.path.isfile(path):
+            files.append(get_file_metadata(path, entry, "public"))
+    return files
+
+
 class FileServerHandler(BaseHTTPRequestHandler):
 
     def check_auth(self):
@@ -140,9 +160,12 @@ class FileServerHandler(BaseHTTPRequestHandler):
 
         if path == "/api/files":
             self.handle_file_list()
+        elif path == "/api/public_files":
+            self.handle_public_file_list()
         elif path == "/api/download":
             filename = params.get("file", [None])[0]
-            self.handle_download(filename)
+            inline = params.get("inline", ["0"])[0] == "1"
+            self.handle_download(filename, inline)
         else:
             self.send_error_json(404, "Not found")
 
@@ -154,8 +177,16 @@ class FileServerHandler(BaseHTTPRequestHandler):
         except OSError as e:
             self.send_error_json(500, f"Error scanning files: {e}")
 
-    def handle_download(self, filename):
-        """Stream a file download."""
+    def handle_public_file_list(self):
+        """Return JSON listing of all public files."""
+        try:
+            files = get_public_files()
+            self.send_json(200, files)
+        except OSError as e:
+            self.send_error_json(500, f"Error scanning public files: {e}")
+
+    def handle_download(self, filename, inline=False):
+        """Stream a file download. If inline=True, serve for browser viewing."""
         if not filename:
             self.send_error_json(400, "Missing 'file' parameter")
             return
@@ -173,9 +204,17 @@ class FileServerHandler(BaseHTTPRequestHandler):
             file_size = os.path.getsize(filepath)
             safe_filename = os.path.basename(filepath)
 
+            content_type = "application/octet-stream"
+            disposition = "attachment"
+            if inline:
+                guessed = mimetypes.guess_type(safe_filename)[0]
+                if guessed:
+                    content_type = guessed
+                disposition = "inline"
+
             self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Disposition", f'attachment; filename="{safe_filename}"')
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Disposition", f'{disposition}; filename="{safe_filename}"')
             self.send_header("Content-Length", str(file_size))
             self.end_headers()
 

@@ -2,6 +2,7 @@ import os
 import json
 import random
 import sqlite3
+import mimetypes
 import requests
 import threading
 
@@ -896,6 +897,108 @@ def archive_download(filename):
 	response.content_type = "application/octet-stream"
 	content_disp = pi_response.headers.get("Content-Disposition", f'attachment; filename="{filename}"')
 	response.headers["Content-Disposition"] = content_disp
+	content_length = pi_response.headers.get("Content-Length")
+	if content_length:
+		response.headers["Content-Length"] = content_length
+
+	def stream():
+		for chunk in pi_response.iter_content(chunk_size=65536):
+			yield chunk
+
+	return stream()
+
+
+## Public files directory listing
+## Serves any files dropped into the public folder on the NAS.
+
+@route("/files")
+def serve_files_page():
+	return static_file("files.html", root=server_folder)
+
+@route("/files/list.json")
+def files_list_json():
+	try:
+		pi_response = requests.get(
+			f"{pi_file_server_url}/api/public_files",
+			headers={"Authorization": pi_auth_token},
+			timeout=10
+		)
+	except requests.exceptions.ConnectionError:
+		return HTTPResponse(status=502, body='{"error": "File server is currently offline."}')
+	except requests.exceptions.Timeout:
+		return HTTPResponse(status=504, body='{"error": "File server timed out."}')
+	except requests.exceptions.RequestException as e:
+		log(f"Files proxy error (file list): {e}")
+		return HTTPResponse(status=502, body='{"error": "Could not reach file server."}')
+
+	if pi_response.status_code != 200:
+		return HTTPResponse(status=pi_response.status_code, body=pi_response.text)
+
+	response.content_type = "application/json"
+	return pi_response.text
+
+@route("/files/download/<filename>")
+def files_download(filename):
+	log(f"Public file download request: {filename} from {request.remote_addr}")
+
+	try:
+		pi_response = requests.get(
+			f"{pi_file_server_url}/api/download",
+			params={"file": filename},
+			headers={"Authorization": pi_auth_token},
+			stream=True,
+			timeout=300
+		)
+	except requests.exceptions.ConnectionError:
+		return HTTPResponse(status=502, body="File server is currently offline. Please try again later.")
+	except requests.exceptions.Timeout:
+		return HTTPResponse(status=504, body="Download timed out. Please try again later.")
+	except requests.exceptions.RequestException as e:
+		log(f"Files proxy error (download {filename}): {e}")
+		return HTTPResponse(status=502, body="Could not reach file server.")
+
+	if pi_response.status_code != 200:
+		return HTTPResponse(status=pi_response.status_code, body=pi_response.text)
+
+	response.content_type = "application/octet-stream"
+	content_disp = pi_response.headers.get("Content-Disposition", f'attachment; filename="{filename}"')
+	response.headers["Content-Disposition"] = content_disp
+	content_length = pi_response.headers.get("Content-Length")
+	if content_length:
+		response.headers["Content-Length"] = content_length
+
+	def stream():
+		for chunk in pi_response.iter_content(chunk_size=65536):
+			yield chunk
+
+	return stream()
+
+@route("/files/view/<filename>")
+def files_view(filename):
+	log(f"Public file view request: {filename} from {request.remote_addr}")
+
+	try:
+		pi_response = requests.get(
+			f"{pi_file_server_url}/api/download",
+			params={"file": filename, "inline": "1"},
+			headers={"Authorization": pi_auth_token},
+			stream=True,
+			timeout=300
+		)
+	except requests.exceptions.ConnectionError:
+		return HTTPResponse(status=502, body="File server is currently offline. Please try again later.")
+	except requests.exceptions.Timeout:
+		return HTTPResponse(status=504, body="Download timed out. Please try again later.")
+	except requests.exceptions.RequestException as e:
+		log(f"Files proxy error (view {filename}): {e}")
+		return HTTPResponse(status=502, body="Could not reach file server.")
+
+	if pi_response.status_code != 200:
+		return HTTPResponse(status=pi_response.status_code, body=pi_response.text)
+
+	content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+	response.content_type = content_type
+	response.headers["Content-Disposition"] = f'inline; filename="{filename}"'
 	content_length = pi_response.headers.get("Content-Length")
 	if content_length:
 		response.headers["Content-Length"] = content_length

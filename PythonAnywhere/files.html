@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Public Files</title>
+	<style>
+		* {
+			box-sizing: border-box;
+		}
+		body {
+			margin: 0;
+			font-family: Arial, sans-serif;
+			background-color: #121212;
+			color: #ffffff;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+		}
+		.title-container {
+			width: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 20px;
+			padding: 20px;
+			background-color: #1f1f1f;
+			box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.4);
+		}
+		.title-container img {
+			height: 50px;
+		}
+		.title-container h1 {
+			margin: 0;
+			font-size: 24px;
+		}
+		.content {
+			width: 90%;
+			max-width: 1000px;
+			margin-top: 30px;
+			padding-bottom: 60px;
+		}
+		.section {
+			background: #1f1f1f;
+			border-radius: 8px;
+			box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.3);
+			padding: 24px;
+			margin-bottom: 24px;
+		}
+		.section h2 {
+			margin: 0 0 16px 0;
+			font-size: 20px;
+			color: #ffffff;
+		}
+		table {
+			width: 100%;
+			border-collapse: collapse;
+		}
+		thead th {
+			text-align: left;
+			padding: 10px 12px;
+			border-bottom: 2px solid #333;
+			color: #b0bec5;
+			font-size: 13px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+		tbody td {
+			padding: 10px 12px;
+			border-bottom: 1px solid #2a2a2a;
+			font-size: 14px;
+		}
+		tbody tr:hover {
+			background-color: #2a2a2a;
+		}
+		.size-cell {
+			white-space: nowrap;
+			font-family: monospace;
+		}
+		a.download-link {
+			color: #64b5f6;
+			text-decoration: none;
+			font-weight: bold;
+		}
+		a.download-link:hover {
+			text-decoration: underline;
+			color: #90caf9;
+		}
+		.loading-container {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			padding: 40px;
+			gap: 16px;
+		}
+		.spinner {
+			border: 4px solid #333333;
+			border-top: 4px solid #ffffff;
+			border-radius: 50%;
+			width: 32px;
+			height: 32px;
+			animation: spin 1s linear infinite;
+		}
+		@keyframes spin {
+			0% { transform: rotate(0deg); }
+			100% { transform: rotate(360deg); }
+		}
+		.error-banner {
+			background: #c628284d;
+			border: 1px solid #c62828;
+			color: #ef9a9a;
+			padding: 16px 20px;
+			border-radius: 8px;
+			text-align: center;
+			margin-bottom: 24px;
+			display: none;
+		}
+		.empty-message {
+			color: #666;
+			font-style: italic;
+			padding: 12px;
+		}
+		@media (max-width: 600px) {
+			.content {
+				width: 95%;
+			}
+			.section {
+				padding: 16px;
+			}
+			thead th, tbody td {
+				padding: 8px 6px;
+				font-size: 13px;
+			}
+		}
+	</style>
+</head>
+<body>
+
+<div class="title-container">
+	<a href="https://sponsor.ajay.app/">
+		<img src="https://sponsor.ajay.app/LogoSponsorBlockSimple256px.png" alt="SponsorBlock Logo">
+	</a>
+	<h1>Public Files</h1>
+</div>
+
+<div class="content">
+	<div id="error" class="error-banner"></div>
+
+	<div id="loading" class="loading-container">
+		<div class="spinner"></div>
+		<p>Loading file list...</p>
+	</div>
+
+	<div id="fileList" style="display: none;">
+		<div class="section">
+			<h2>Files</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>Filename</th>
+						<th>Size</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody id="filesBody"></tbody>
+			</table>
+		</div>
+	</div>
+</div>
+
+<script>
+	const VIEWABLE_EXTENSIONS = new Set([
+		".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico",
+		".pdf", ".txt", ".csv", ".json", ".xml",
+		".mp4", ".webm", ".mp3", ".ogg", ".wav",
+	]);
+
+	function isViewable(filename) {
+		const dot = filename.lastIndexOf(".");
+		if (dot === -1) return false;
+		return VIEWABLE_EXTENSIONS.has(filename.slice(dot).toLowerCase());
+	}
+
+	function buildRow(file) {
+		const tr = document.createElement("tr");
+
+		const tdName = document.createElement("td");
+		tdName.textContent = file.filename;
+		tr.appendChild(tdName);
+
+		const tdSize = document.createElement("td");
+		tdSize.className = "size-cell";
+		tdSize.textContent = file.size_human;
+		tr.appendChild(tdSize);
+
+		const tdLinks = document.createElement("td");
+		if (isViewable(file.filename)) {
+			const viewLink = document.createElement("a");
+			viewLink.className = "download-link";
+			viewLink.href = "/files/view/" + encodeURIComponent(file.filename);
+			viewLink.textContent = "View";
+			viewLink.target = "_blank";
+			tdLinks.appendChild(viewLink);
+			tdLinks.appendChild(document.createTextNode(" | "));
+		}
+		const dlLink = document.createElement("a");
+		dlLink.className = "download-link";
+		dlLink.href = "/files/download/" + encodeURIComponent(file.filename);
+		dlLink.textContent = "Download";
+		tdLinks.appendChild(dlLink);
+		tr.appendChild(tdLinks);
+
+		return tr;
+	}
+
+	async function loadFiles() {
+		const loading = document.getElementById("loading");
+		const fileList = document.getElementById("fileList");
+		const errorBanner = document.getElementById("error");
+
+		try {
+			const response = await fetch("/files/list.json");
+			if (!response.ok) {
+				throw new Error(response.status === 502
+					? "The file server is currently offline. Please try again later."
+					: "Failed to load file list (HTTP " + response.status + ")");
+			}
+
+			const files = await response.json();
+			const tbody = document.getElementById("filesBody");
+
+			if (!files || files.length === 0) {
+				const tr = document.createElement("tr");
+				const td = document.createElement("td");
+				td.colSpan = 3;
+				td.className = "empty-message";
+				td.textContent = "No files available";
+				tr.appendChild(td);
+				tbody.appendChild(tr);
+			} else {
+				for (const file of files) {
+					tbody.appendChild(buildRow(file));
+				}
+			}
+
+			loading.style.display = "none";
+			fileList.style.display = "block";
+
+		} catch (err) {
+			loading.style.display = "none";
+			errorBanner.textContent = err.message || "Failed to load file list. The file server may be offline.";
+			errorBanner.style.display = "block";
+		}
+	}
+
+	window.onload = loadFiles;
+</script>
+</body>
+</html>
