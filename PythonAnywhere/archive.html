@@ -151,6 +151,167 @@
 				font-size: 13px;
 			}
 		}
+
+		/* Batch Download UI */
+		.batch-toolbar {
+			background: #1a1a2e;
+			border: 1px solid #333;
+			border-radius: 8px;
+			padding: 12px 16px;
+			margin-bottom: 24px;
+			display: none;
+			flex-direction: column;
+			gap: 12px;
+			position: sticky;
+			top: 12px;
+			z-index: 100;
+		}
+		.batch-toolbar.visible {
+			display: flex;
+		}
+		.toolbar-row {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			flex-wrap: wrap;
+		}
+		.toolbar-row label {
+			color: #b0bec5;
+			font-size: 13px;
+		}
+		.selection-summary {
+			color: #b0bec5;
+			font-size: 13px;
+			margin-left: auto;
+		}
+		.btn {
+			padding: 6px 14px;
+			border: none;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 13px;
+			font-weight: bold;
+			white-space: nowrap;
+		}
+		.btn:disabled {
+			opacity: 0.4;
+			cursor: not-allowed;
+		}
+		.btn-primary {
+			background: #1976d2;
+			color: #fff;
+		}
+		.btn-primary:hover:not(:disabled) {
+			background: #1e88e5;
+		}
+		.btn-secondary {
+			background: #333;
+			color: #b0bec5;
+		}
+		.btn-secondary:hover:not(:disabled) {
+			background: #444;
+		}
+		.btn-danger {
+			background: #c62828;
+			color: #fff;
+		}
+		.btn-danger:hover:not(:disabled) {
+			background: #e53935;
+		}
+		.date-range-group {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+		.date-range-group input[type="date"] {
+			background: #2a2a2a;
+			border: 1px solid #444;
+			color: #fff;
+			padding: 4px 8px;
+			border-radius: 4px;
+			font-size: 13px;
+			font-family: Arial, sans-serif;
+		}
+		.date-range-group input[type="date"]::-webkit-calendar-picker-indicator {
+			filter: invert(0.8);
+		}
+		.checkbox-cell {
+			width: 32px;
+			text-align: center;
+		}
+		.checkbox-cell input[type="checkbox"] {
+			width: 16px;
+			height: 16px;
+			cursor: pointer;
+			accent-color: #1976d2;
+		}
+		tbody tr.selected {
+			background-color: #1a1a2e;
+		}
+		tbody tr.selected:hover {
+			background-color: #222244;
+		}
+		.progress-panel {
+			background: #1a1a2e;
+			border: 1px solid #333;
+			border-radius: 8px;
+			padding: 16px 20px;
+			margin-bottom: 24px;
+			display: none;
+		}
+		.progress-panel.visible {
+			display: block;
+		}
+		.progress-bar-container {
+			width: 100%;
+			height: 8px;
+			background: #333;
+			border-radius: 4px;
+			margin: 12px 0;
+			overflow: hidden;
+		}
+		.progress-bar {
+			height: 100%;
+			background: #1976d2;
+			border-radius: 4px;
+			width: 0%;
+			transition: width 0.3s ease;
+		}
+		.progress-text {
+			color: #b0bec5;
+			font-size: 13px;
+			display: flex;
+			justify-content: space-between;
+		}
+		.progress-controls {
+			display: flex;
+			gap: 8px;
+			margin-top: 12px;
+		}
+		.progress-current-file {
+			color: #64b5f6;
+			font-size: 12px;
+			font-family: monospace;
+			margin-top: 4px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		@media (max-width: 600px) {
+			.toolbar-row {
+				flex-direction: column;
+				align-items: flex-start;
+			}
+			.selection-summary {
+				margin-left: 0;
+			}
+			.date-range-group {
+				flex-wrap: wrap;
+			}
+			.checkbox-cell {
+				width: 28px;
+			}
+		}
 	</style>
 </head>
 <body>
@@ -164,6 +325,52 @@
 
 <div class="content">
 	<div id="error" class="error-banner"></div>
+
+	<!-- Batch download toolbar -->
+	<div id="batchToolbar" class="batch-toolbar">
+		<div class="toolbar-row">
+			<button class="btn btn-secondary" onclick="selectAll('daily')">Select All Daily</button>
+			<button class="btn btn-secondary" onclick="selectAll('monthly')">Select All Monthly</button>
+			<button class="btn btn-secondary" onclick="clearSelection()">Clear Selection</button>
+			<span id="selectionSummary" class="selection-summary">0 files selected</span>
+		</div>
+		<div class="toolbar-row">
+			<div class="date-range-group">
+				<label>Daily date range:</label>
+				<input type="date" id="dateFrom" title="Start date (inclusive)">
+				<span style="color:#666;">to</span>
+				<input type="date" id="dateTo" title="End date (inclusive)">
+				<button class="btn btn-secondary" onclick="selectDateRange()">Select Range</button>
+			</div>
+		</div>
+		<div class="toolbar-row">
+			<button id="btnDownloadBrowser" class="btn btn-primary" onclick="startBrowserDownload()" disabled>
+				Download in Browser
+			</button>
+			<button id="btnGenerateScript" class="btn btn-primary" onclick="generateDownloadScript()" disabled>
+				Generate Download Script
+			</button>
+			<button id="btnGenerateUrlList" class="btn btn-secondary" onclick="generateUrlList()" disabled>
+				Copy URL List
+			</button>
+		</div>
+	</div>
+
+	<!-- Download progress panel -->
+	<div id="progressPanel" class="progress-panel">
+		<div class="progress-text">
+			<span id="progressLabel">Downloading...</span>
+			<span id="progressCount">0 / 0</span>
+		</div>
+		<div class="progress-bar-container">
+			<div id="progressBar" class="progress-bar"></div>
+		</div>
+		<div id="progressCurrentFile" class="progress-current-file"></div>
+		<div class="progress-controls">
+			<button id="btnPause" class="btn btn-secondary" onclick="togglePauseDownload()">Pause</button>
+			<button id="btnCancel" class="btn btn-danger" onclick="cancelDownload()">Cancel</button>
+		</div>
+	</div>
 
 	<div id="loading" class="loading-container">
 		<div class="spinner"></div>
@@ -187,7 +394,7 @@
 			</p>
 			<p class="description">
 				A Python utility script,
-				<a class="download-link" id="helperLink" href="#">helper_functions.py</a>,
+				<a class="download-link" href="https://github.com/AcesFullOfKings/SponsorBlock-Archive/blob/main/RaspberryPi/helper_functions.py" target="_blank">helper_functions.py</a>,
 				is available to help you query these databases. It provides functions for looking up segments,
 				users, and available dates. Just update the database path variables at the top of the file
 				to point to your local copies.
@@ -208,9 +415,11 @@
 			<table>
 				<thead>
 					<tr>
+						<th class="checkbox-cell">
+							<input type="checkbox" title="Select all" onchange="toggleTableSelectAll(this, 'static')">
+						</th>
 						<th>Filename</th>
 						<th>Size</th>
-						<th>Last Modified</th>
 						<th></th>
 					</tr>
 				</thead>
@@ -228,9 +437,11 @@
 			<table>
 				<thead>
 					<tr>
+						<th class="checkbox-cell">
+							<input type="checkbox" title="Select all" onchange="toggleTableSelectAll(this, 'daily')">
+						</th>
 						<th>Filename</th>
 						<th>Size</th>
-						<th>Last Modified</th>
 						<th></th>
 					</tr>
 				</thead>
@@ -248,9 +459,11 @@
 			<table>
 				<thead>
 					<tr>
+						<th class="checkbox-cell">
+							<input type="checkbox" title="Select all" onchange="toggleTableSelectAll(this, 'monthly')">
+						</th>
 						<th>Filename</th>
 						<th>Size</th>
-						<th>Last Modified</th>
 						<th></th>
 					</tr>
 				</thead>
@@ -261,14 +474,44 @@
 </div>
 
 <script>
-	function sizeWarningLabel(sizeBytes) {
-		const gb = sizeBytes / (1024 * 1024 * 1024);
-		if (gb >= 10) return "Large file";
-		return null;
+	// Global state
+	let allFiles = { static: [], daily: [], monthly: [] };
+	let selectedFiles = new Set();
+	let downloadQueue = null;
+
+	function formatSize(bytes) {
+		const units = ["B", "KB", "MB", "GB", "TB"];
+		let i = 0;
+		let size = bytes;
+		while (size >= 1024 && i < units.length - 1) {
+			size /= 1024;
+			i++;
+		}
+		return size.toFixed(1) + " " + units[i];
 	}
 
 	function buildRow(file) {
 		const tr = document.createElement("tr");
+		tr.dataset.filename = file.filename;
+
+		// Checkbox cell
+		const tdCheck = document.createElement("td");
+		tdCheck.className = "checkbox-cell";
+		const checkbox = document.createElement("input");
+		checkbox.type = "checkbox";
+		checkbox.dataset.filename = file.filename;
+		checkbox.addEventListener("change", function() {
+			if (this.checked) {
+				selectedFiles.add(file.filename);
+				tr.classList.add("selected");
+			} else {
+				selectedFiles.delete(file.filename);
+				tr.classList.remove("selected");
+			}
+			updateSelectionUI();
+		});
+		tdCheck.appendChild(checkbox);
+		tr.appendChild(tdCheck);
 
 		const tdName = document.createElement("td");
 		tdName.textContent = file.filename;
@@ -277,19 +520,8 @@
 		const tdSize = document.createElement("td");
 		tdSize.className = "size-cell";
 		tdSize.textContent = file.size_human;
-		const warning = sizeWarningLabel(file.size_bytes);
-		if (warning) {
-			const span = document.createElement("span");
-			span.className = "size-warning";
-			span.textContent = warning;
-			tdSize.appendChild(span);
-		}
-		tr.appendChild(tdSize);
 
-		const tdDate = document.createElement("td");
-		tdDate.className = "date-cell";
-		tdDate.textContent = file.last_modified;
-		tr.appendChild(tdDate);
+		tr.appendChild(tdSize);
 
 		const tdLink = document.createElement("td");
 		const a = document.createElement("a");
@@ -334,24 +566,396 @@
 
 			const data = await response.json();
 
-			populateTable("staticBody", data.static);
-			populateTable("dailyBody", data.daily);
-			populateTable("monthlyBody", data.monthly);
+			const MIN_FILE_SIZE = 50 * 1024; // Filter out empty/corrupt files under 50KB
+			allFiles.static = data.static || [];
+			allFiles.daily = (data.daily || []).filter(f => f.size_bytes >= MIN_FILE_SIZE);
+			allFiles.monthly = data.monthly || [];
 
-			// Set helper_functions.py download link if available
-			if (data.tools && data.tools.length > 0) {
-				const helperLink = document.getElementById("helperLink");
-				helperLink.href = "/archive/download/" + encodeURIComponent(data.tools[0].filename);
+			populateTable("staticBody", allFiles.static);
+			populateTable("dailyBody", allFiles.daily);
+			populateTable("monthlyBody", allFiles.monthly);
+
+			// Set date range picker bounds from daily filenames
+			if (allFiles.daily.length > 0) {
+				// Daily files are sorted newest-first by the server
+				const newest = allFiles.daily[0].filename.substring(0, 10);
+				const oldest = allFiles.daily[allFiles.daily.length - 1].filename.substring(0, 10);
+				document.getElementById("dateFrom").min = oldest;
+				document.getElementById("dateFrom").max = newest;
+				document.getElementById("dateTo").min = oldest;
+				document.getElementById("dateTo").max = newest;
 			}
 
 			loading.style.display = "none";
 			sections.style.display = "block";
+			document.getElementById("batchToolbar").classList.add("visible");
 
 		} catch (err) {
 			loading.style.display = "none";
 			errorBanner.textContent = err.message || "Failed to load file list. The archive server may be offline.";
 			errorBanner.style.display = "block";
 		}
+	}
+
+	// ============================================================
+	// Selection Management
+	// ============================================================
+
+	function findFileByName(filename) {
+		for (const type of ["static", "daily", "monthly"]) {
+			for (const f of allFiles[type]) {
+				if (f.filename === filename) return f;
+			}
+		}
+		return null;
+	}
+
+	function updateSelectionUI() {
+		const count = selectedFiles.size;
+		let totalBytes = 0;
+		for (const fname of selectedFiles) {
+			const file = findFileByName(fname);
+			if (file) totalBytes += file.size_bytes;
+		}
+		const sizeText = totalBytes > 0 ? " (" + formatSize(totalBytes) + ")" : "";
+		document.getElementById("selectionSummary").textContent =
+			count + " file" + (count !== 1 ? "s" : "") + " selected" + sizeText;
+
+		const hasSelection = count > 0;
+		document.getElementById("btnDownloadBrowser").disabled = !hasSelection;
+		document.getElementById("btnGenerateScript").disabled = !hasSelection;
+		document.getElementById("btnGenerateUrlList").disabled = !hasSelection;
+
+		// Update header checkboxes
+		for (const type of ["static", "daily", "monthly"]) {
+			updateHeaderCheckbox(type);
+		}
+	}
+
+	function updateHeaderCheckbox(type) {
+		const files = allFiles[type] || [];
+		if (files.length === 0) return;
+		const tbody = document.getElementById(type + "Body");
+		if (!tbody) return;
+		const thead = tbody.previousElementSibling;
+		if (!thead) return;
+		const headerCb = thead.querySelector('input[type="checkbox"]');
+		if (!headerCb) return;
+		const allSelected = files.every(f => selectedFiles.has(f.filename));
+		const someSelected = files.some(f => selectedFiles.has(f.filename));
+		headerCb.checked = allSelected;
+		headerCb.indeterminate = someSelected && !allSelected;
+	}
+
+	function syncCheckboxes() {
+		const checkboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+		for (const cb of checkboxes) {
+			const isSelected = selectedFiles.has(cb.dataset.filename);
+			cb.checked = isSelected;
+			const tr = cb.closest("tr");
+			if (tr) tr.classList.toggle("selected", isSelected);
+		}
+	}
+
+	function selectAll(type) {
+		const files = allFiles[type] || [];
+		for (const f of files) selectedFiles.add(f.filename);
+		syncCheckboxes();
+		updateSelectionUI();
+	}
+
+	function clearSelection() {
+		selectedFiles.clear();
+		syncCheckboxes();
+		updateSelectionUI();
+	}
+
+	function toggleTableSelectAll(headerCheckbox, type) {
+		const files = allFiles[type] || [];
+		if (headerCheckbox.checked) {
+			for (const f of files) selectedFiles.add(f.filename);
+		} else {
+			for (const f of files) selectedFiles.delete(f.filename);
+		}
+		syncCheckboxes();
+		updateSelectionUI();
+	}
+
+	function selectDateRange() {
+		const fromStr = document.getElementById("dateFrom").value;
+		const toStr = document.getElementById("dateTo").value;
+
+		if (!fromStr && !toStr) {
+			alert("Please select at least a start or end date.");
+			return;
+		}
+
+		const from = fromStr || "0000-00-00";
+		const to = toStr || "9999-99-99";
+
+		// Count total days in range to report gaps
+		let daysInRange = 0;
+		if (fromStr && toStr) {
+			const d1 = new Date(fromStr);
+			const d2 = new Date(toStr);
+			daysInRange = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+		}
+
+		let count = 0;
+		for (const f of allFiles.daily) {
+			const fileDate = f.filename.substring(0, 10);
+			if (fileDate >= from && fileDate <= to) {
+				selectedFiles.add(f.filename);
+				count++;
+			}
+		}
+
+		syncCheckboxes();
+		updateSelectionUI();
+
+		if (count === 0) {
+			alert("No daily files found in the selected date range.");
+		} else if (daysInRange > 0 && count < daysInRange) {
+			const missing = daysInRange - count;
+			alert("Selected " + count + " files (" + missing + " date" + (missing !== 1 ? "s" : "") + " in this range had no data).");
+		}
+	}
+
+	// ============================================================
+	// Browser Download Queue
+	// ============================================================
+
+	function getSelectedFileObjects() {
+		const result = [];
+		for (const type of ["static", "daily", "monthly"]) {
+			for (const f of allFiles[type]) {
+				if (selectedFiles.has(f.filename)) result.push(f);
+			}
+		}
+		return result;
+	}
+
+	function startBrowserDownload() {
+		const files = getSelectedFileObjects();
+		if (files.length === 0) return;
+
+		if (files.length > 50) {
+			const proceed = confirm(
+				"You have " + files.length + " files selected. " +
+				"Browser downloads work best for fewer than 50 files.\n\n" +
+				"For large batches, 'Generate Download Script' is more reliable.\n\n" +
+				"Continue with browser download anyway?"
+			);
+			if (!proceed) return;
+		}
+
+		downloadQueue = {
+			files: files,
+			current: 0,
+			paused: false,
+			cancelled: false,
+			delayMs: 3000,
+			timeoutId: null,
+		};
+
+		showProgressPanel();
+		processNextDownload();
+	}
+
+	function processNextDownload() {
+		if (!downloadQueue || downloadQueue.cancelled) {
+			finishDownloadQueue("cancelled");
+			return;
+		}
+		if (downloadQueue.paused) return;
+
+		if (downloadQueue.current >= downloadQueue.files.length) {
+			finishDownloadQueue("complete");
+			return;
+		}
+
+		const file = downloadQueue.files[downloadQueue.current];
+		const url = "/archive/download/" + encodeURIComponent(file.filename);
+
+		updateProgressUI(file);
+
+		// Trigger download via hidden iframe
+		let iframe = document.getElementById("downloadIframe");
+		if (!iframe) {
+			iframe = document.createElement("iframe");
+			iframe.id = "downloadIframe";
+			iframe.style.display = "none";
+			document.body.appendChild(iframe);
+		}
+		iframe.src = url;
+
+		downloadQueue.current++;
+
+		// Schedule next download after a delay to avoid overlapping
+		// requests on the single-threaded server
+		downloadQueue.timeoutId = setTimeout(processNextDownload, downloadQueue.delayMs);
+	}
+
+	function updateProgressUI(currentFile) {
+		if (!downloadQueue) return;
+		const total = downloadQueue.files.length;
+		const current = downloadQueue.current + 1;
+		const pct = Math.round((downloadQueue.current / total) * 100);
+
+		document.getElementById("progressCount").textContent = current + " / " + total;
+		document.getElementById("progressBar").style.width = pct + "%";
+		document.getElementById("progressCurrentFile").textContent =
+			"Current: " + currentFile.filename + " (" + currentFile.size_human + ")";
+	}
+
+	function showProgressPanel() {
+		document.getElementById("progressPanel").classList.add("visible");
+		document.getElementById("progressLabel").textContent = "Downloading...";
+		document.getElementById("progressBar").style.width = "0%";
+		document.getElementById("progressCurrentFile").textContent = "";
+		document.getElementById("btnPause").textContent = "Pause";
+		document.getElementById("btnPause").style.display = "";
+		document.getElementById("btnCancel").textContent = "Cancel";
+		document.getElementById("btnCancel").onclick = cancelDownload;
+	}
+
+	function togglePauseDownload() {
+		if (!downloadQueue) return;
+		downloadQueue.paused = !downloadQueue.paused;
+
+		if (downloadQueue.paused) {
+			if (downloadQueue.timeoutId) clearTimeout(downloadQueue.timeoutId);
+			document.getElementById("btnPause").textContent = "Resume";
+			document.getElementById("progressLabel").textContent = "Paused";
+		} else {
+			document.getElementById("btnPause").textContent = "Pause";
+			document.getElementById("progressLabel").textContent = "Downloading...";
+			processNextDownload();
+		}
+	}
+
+	function cancelDownload() {
+		if (!downloadQueue) return;
+		downloadQueue.cancelled = true;
+		if (downloadQueue.timeoutId) clearTimeout(downloadQueue.timeoutId);
+		finishDownloadQueue("cancelled");
+	}
+
+	function finishDownloadQueue(reason) {
+		if (reason === "complete") {
+			document.getElementById("progressLabel").textContent = "Complete!";
+			document.getElementById("progressBar").style.width = "100%";
+		} else if (reason === "cancelled") {
+			document.getElementById("progressLabel").textContent = "Cancelled";
+		}
+		document.getElementById("btnPause").style.display = "none";
+		document.getElementById("btnCancel").textContent = "Close";
+		document.getElementById("btnCancel").onclick = function() {
+			document.getElementById("progressPanel").classList.remove("visible");
+			downloadQueue = null;
+		};
+	}
+
+	// ============================================================
+	// Download Script & URL List Generation
+	// ============================================================
+
+	function generateDownloadScript() {
+		const files = getSelectedFileObjects();
+		if (files.length === 0) return;
+
+		const baseUrl = window.location.origin + "/archive/download/";
+		let totalSize = 0;
+		for (const f of files) totalSize += f.size_bytes;
+
+		const lines = [
+			"#!/bin/bash",
+			"#",
+			"# SponsorBlock Archive Download Script",
+			"# Generated: " + new Date().toISOString(),
+			"# Files: " + files.length,
+			"# Total size: " + formatSize(totalSize),
+			"#",
+			"# Usage: chmod +x download.sh && ./download.sh [output_dir]",
+			"# Requirements: wget",
+			"#",
+			"# Downloads files sequentially to avoid overloading the server.",
+			"# Supports resuming: re-run the script and already-downloaded files are skipped.",
+			"#",
+			"",
+			'OUTPUT_DIR="${1:-.}"',
+			'mkdir -p "$OUTPUT_DIR"',
+			"",
+			"TOTAL=" + files.length,
+			"CURRENT=0",
+			"FAILED=0",
+			"",
+			"download_file() {",
+			'    local url="$1"',
+			'    local filename="$2"',
+			"    CURRENT=$((CURRENT + 1))",
+			'    echo "[${CURRENT}/${TOTAL}] Downloading ${filename}..."',
+			'    if [ -f "$OUTPUT_DIR/$filename" ]; then',
+			'        echo "  Already exists, skipping (delete to re-download)"',
+			"        return 0",
+			"    fi",
+			'    if wget -q --show-progress -O "$OUTPUT_DIR/$filename.part" "$url"; then',
+			'        mv "$OUTPUT_DIR/$filename.part" "$OUTPUT_DIR/$filename"',
+			"    else",
+			'        echo "  FAILED: $filename"',
+			'        rm -f "$OUTPUT_DIR/$filename.part"',
+			"        FAILED=$((FAILED + 1))",
+			"    fi",
+			"}",
+			"",
+		];
+
+		for (const f of files) {
+			const url = baseUrl + encodeURIComponent(f.filename);
+			lines.push('download_file "' + url + '" "' + f.filename + '"');
+		}
+
+		lines.push("");
+		lines.push("echo ''");
+		lines.push('echo "Download complete. ${CURRENT} files processed, ${FAILED} failed."');
+		lines.push("");
+
+		const blob = new Blob([lines.join("\n")], { type: "text/x-shellscript" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = "sb_archive_download.sh";
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
+	function generateUrlList() {
+		const files = getSelectedFileObjects();
+		if (files.length === 0) return;
+
+		const baseUrl = window.location.origin + "/archive/download/";
+		const urls = files.map(f => baseUrl + encodeURIComponent(f.filename));
+		const text = urls.join("\n");
+
+		navigator.clipboard.writeText(text).then(function() {
+			const btn = document.getElementById("btnGenerateUrlList");
+			const originalText = btn.textContent;
+			btn.textContent = "Copied!";
+			setTimeout(function() { btn.textContent = originalText; }, 2000);
+		}).catch(function() {
+			// Fallback: download as text file if clipboard fails
+			const blob = new Blob([text], { type: "text/plain" });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = "sb_archive_urls.txt";
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		});
 	}
 
 	window.onload = loadFiles;
