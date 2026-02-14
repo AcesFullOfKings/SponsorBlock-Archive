@@ -26,3 +26,4 @@ temp/
 
 .DS_Store
 test_index_performance.py
+.code-workspace
