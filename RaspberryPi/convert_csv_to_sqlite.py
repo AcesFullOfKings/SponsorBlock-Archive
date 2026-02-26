@@ -20,7 +20,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 import config
 
 
@@ -263,8 +263,8 @@ def process_csv_file(csv_path: str):
 		# Optimize SQLite settings for bulk inserts
 		print("Optimizing database settings for bulk insert...")
 		for conn in [static_conn, daily_conn]:
-			conn.execute("PRAGMA journal_mode = WAL")   # Write-Ahead Logging for better concurrency
-			conn.execute("PRAGMA synchronous = NORMAL") # Faster commits, still safe
+			conn.execute("PRAGMA journal_mode = OFF")   # I don't need journalling: if the writes fail I can just re-run this script
+			conn.execute("PRAGMA synchronous = OFF")    # This is single threaded so no need for synchronous access
 			conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
 			conn.execute("PRAGMA temp_store = MEMORY")  # Keep temp tables in memory
 
@@ -388,7 +388,7 @@ def process_csv_file(csv_path: str):
 		shutil.move(str(daily_db_temp_path), str(daily_db_final_path))
 		print(f"  Daily file moved to: {daily_db_final_path}")
 
-		shutil.move(str(static_db_path_local), str(static_db_path_whitebox)+".tmp") # move the static db to the NAS, but as a temp file
+		shutil.copy2(str(static_db_path_local), str(static_db_path_whitebox)+".tmp") # copy the static db to the NAS, but as a temp file
 		os.rename(str(static_db_path_whitebox)+".tmp", str(static_db_path_whitebox)) #rename the temp file to replace the original
 
 		print("Conversion complete!")

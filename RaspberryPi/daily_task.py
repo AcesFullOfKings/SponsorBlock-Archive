@@ -49,13 +49,14 @@ if __name__ == "__main__":
 				#r4 = os.system("python upload_user_data.py")
 				#log(f"upload_user_data result was {r4}")
 
-			os.rename("./download/sponsorTimes.csv", "./download/{year}-{month}-{day}_sponsorTimes.csv")
+			os.rename(f"./download/sponsorTimes.csv", "./download/{year}-{month}-{day}_sponsorTimes.csv")
 
-			log("Converting csv to sql..")
-			r4 = os.system("python convert_csv_to_sqlite.py ./download/sponsorTimes.csv")
-			log(f"Conversion result: {r4}")
-
-			os.remove("./download/{year}-{month}-{day}_sponsorTimes.csv")
+			try:
+				log("Converting csv to sql..")
+				r4 = os.system(f"python convert_csv_to_sqlite.py ./download/{year}-{month}-{day}_sponsorTimes.csv")
+				log(f"Conversion result: {r4}")
+			finally:
+				os.remove(f"./download/{year}-{month}-{day}_sponsorTimes.csv")
 
 		else:
 			log("Failed when running generate_leaderboard.py")
