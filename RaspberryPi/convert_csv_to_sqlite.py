@@ -48,21 +48,17 @@ def get_or_create_user_id(cursor: sqlite3.Cursor, user_long_id: str,
 
 def get_or_create_segment_id(cursor: sqlite3.Cursor, segment_uuid: str,
 							 segment_data: Dict[str, any],
-							 segment_cache: Dict[str, int]) -> int:
+							 segment_cache: Dict[str, int],
+							 update_batch: list) -> int:
 	"""
 	Get the short_id for a segment, creating or updating the entry as needed.
 
-	If the segment exists, update hidden/shadow_hidden/locked fields.
-	If the segment is new, create it with all metadata.
+	If the segment exists, queues a hidden/shadow_hidden/locked update into update_batch.
+	If the segment is new, creates it immediately (needs lastrowid).
 	"""
 	# Check cache first
 	if segment_uuid in segment_cache:
-		# Update the segment's status fields if it already exists
-		cursor.execute("""
-			UPDATE segments
-			SET hidden = ?, shadow_hidden = ?, locked = ?
-			WHERE short_id = ?
-		""", (
+		update_batch.append((
 			segment_data['hidden'],
 			segment_data['shadow_hidden'],
 			segment_data['locked'],
@@ -75,12 +71,7 @@ def get_or_create_segment_id(cursor: sqlite3.Cursor, segment_uuid: str,
 	result = cursor.fetchone()
 
 	if result:
-		# Update status fields
-		cursor.execute("""
-			UPDATE segments
-			SET hidden = ?, shadow_hidden = ?, locked = ?
-			WHERE short_id = ?
-		""", (
+		update_batch.append((
 			segment_data['hidden'],
 			segment_data['shadow_hidden'],
 			segment_data['locked'],
@@ -287,6 +278,10 @@ def process_csv_file(csv_path: str):
 		user_cache: Dict[str, int] = {}
 		segment_cache: Dict[str, int] = {}
 
+		# Batches for executemany — flushed every 100k rows and at the end
+		update_batch: list = []  # (hidden, shadow_hidden, locked, short_id) for static UPDATE
+		daily_batch: list = []   # (segment_id, votes, views) for daily INSERT
+
 		# Start transactions for better performance
 		static_conn.execute("BEGIN TRANSACTION")
 		daily_conn.execute("BEGIN TRANSACTION")
@@ -306,6 +301,16 @@ def process_csv_file(csv_path: str):
 
 			if row_count % 100000 == 0:
 				print(f"Committing batch at {row_count:,} rows...")
+				static_cursor.executemany(
+					"UPDATE segments SET hidden = ?, shadow_hidden = ?, locked = ? WHERE short_id = ?",
+					update_batch
+				)
+				update_batch.clear()
+				daily_cursor.executemany(
+					"INSERT INTO segment_data (segment_id, votes, views) VALUES (?, ?, ?)",
+					daily_batch
+				)
+				daily_batch.clear()
 				static_conn.commit()
 				daily_conn.commit()
 				static_conn.execute("BEGIN TRANSACTION")
@@ -345,18 +350,12 @@ def process_csv_file(csv_path: str):
 					static_cursor,
 					uuid,
 					segment_data,
-					segment_cache
+					segment_cache,
+					update_batch
 				)
 
-				# Insert daily data
-				daily_cursor.execute("""
-					INSERT INTO segment_data (segment_id, votes, views)
-					VALUES (?, ?, ?)
-				""", (
-					segment_short_id,
-					int(votes),
-					int(views)
-				))
+				# Queue daily data for batch insert
+				daily_batch.append((segment_short_id, int(votes), int(views)))
 
 			except Exception as e:
 				skipped_rows += 1
@@ -372,8 +371,18 @@ def process_csv_file(csv_path: str):
 		else:
 			print(f"Finished processing {row_count:,} rows")
 
-		# Commit final transaction
+		# Flush remaining batches and commit final transaction
 		print("Committing final changes to databases...")
+		if update_batch:
+			static_cursor.executemany(
+				"UPDATE segments SET hidden = ?, shadow_hidden = ?, locked = ? WHERE short_id = ?",
+				update_batch
+			)
+		if daily_batch:
+			daily_cursor.executemany(
+				"INSERT INTO segment_data (segment_id, votes, views) VALUES (?, ?, ?)",
+				daily_batch
+			)
 		static_conn.commit()
 		daily_conn.commit()
 
