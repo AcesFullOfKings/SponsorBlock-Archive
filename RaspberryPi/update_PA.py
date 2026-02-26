@@ -19,8 +19,6 @@ def upload_file(source_path, destination_folder, filename):
     else:
         print(f"Upload of {filename} failed with status code {response.status_code}: {response.content}")
 
-base_server_file_path   = f"/home/{PA_username}/server/data"  # Destination path on the server
-
 today_string = datetime.now().strftime("%Y-%m-%d")
 
 leaderboard_local_path = "leaderboard.json"
@@ -28,7 +26,7 @@ globalstats_local_path = "global_stats.json"
 lastupdate_local_path  = "last_db_update.txt"
 userNames_local_path = "download/userNames.csv"
 
-server_data_path = "/home/AcesFullOfKings/server/data"
+server_data_path = f"/home/{PA_username}/server/data"  # Destination path on the server
 
 upload_file(leaderboard_local_path, server_data_path, "leaderboard.json")
 upload_file(globalstats_local_path, server_data_path, "global_stats.json")
