@@ -12,6 +12,8 @@ All endpoints require a Bearer token in the Authorization header.
 import os
 import re
 import json
+import logging
+import logging.handlers
 import mimetypes
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -20,6 +22,26 @@ from urllib.parse import urlparse, parse_qs
 from config import ARCHIVE_PATH, DAILY_FILES_DIR, MONTHLY_ARCHIVES_DIR, PUBLIC_FILES_DIR, AUTH_TOKEN, PORT, HELPER_FUNCTIONS_PATH
 
 CHUNK_SIZE = 64 * 1024  # 64KB
+
+# ---------------------------------------------------------------------------
+# Logging setup
+# ---------------------------------------------------------------------------
+LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "file_server.log")
+
+logger = logging.getLogger("file_server")
+logger.setLevel(logging.INFO)
+
+_handler = logging.handlers.RotatingFileHandler(
+    LOG_FILE,
+    maxBytes=10 * 1024 * 1024,  # rotate at 10 MB
+    backupCount=5,               # keeps file_server.log.1 … .5
+    encoding="utf-8",
+)
+_handler.setFormatter(logging.Formatter(
+    "%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+))
+logger.addHandler(_handler)
 
 # Filename validation patterns (prevents path traversal)
 DAILY_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}_segmentData\.sqlite3$')
@@ -155,6 +177,7 @@ class FileServerHandler(BaseHTTPRequestHandler):
 
         # Check NAS is mounted
         if not os.path.isdir(ARCHIVE_PATH):
+            logger.error("NAS not mounted - rejecting request from %s", self.address_string())
             self.send_error_json(503, "Archive storage is not available")
             return
 
@@ -187,22 +210,29 @@ class FileServerHandler(BaseHTTPRequestHandler):
 
     def handle_download(self, filename, inline=False):
         """Stream a file download. If inline=True, serve for browser viewing."""
+        client_ip = self.headers.get("X-Forwarded-For", self.address_string())
+        action = "view" if inline else "download"
+
         if not filename:
+            logger.warning("%s %s FAIL 400 missing_file_parameter", client_ip, action)
             self.send_error_json(400, "Missing 'file' parameter")
             return
 
         filepath = resolve_filepath(filename)
         if filepath is None:
+            logger.warning("%s %s FAIL 400 invalid_filename requested=%s", client_ip, action, filename)
             self.send_error_json(400, "Invalid filename")
             return
 
         if not os.path.isfile(filepath):
+            logger.warning("%s %s FAIL 404 file=%s", client_ip, action, filename)
             self.send_error_json(404, "File not found")
             return
 
         try:
             file_size = os.path.getsize(filepath)
             safe_filename = os.path.basename(filepath)
+            logger.info("%s %s OK file=%s size=%s", client_ip, action, safe_filename, format_size(file_size))
 
             content_type = "application/octet-stream"
             disposition = "attachment"
@@ -227,19 +257,21 @@ class FileServerHandler(BaseHTTPRequestHandler):
 
         except (BrokenPipeError, ConnectionResetError):
             # Client disconnected mid-download, nothing to do
-            pass
+            logger.warning("%s %s INTERRUPTED file=%s", client_ip, action, filename)
         except OSError as e:
             # Can't send error response if headers are already sent
+            logger.error("%s %s ERROR file=%s error=%s", client_ip, action, filename, e)
             print(f"Error streaming file {filename}: {e}")
 
     def log_message(self, format, *args):
-        """Override default logging to include timestamp."""
-        print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {self.address_string()} - {format % args}")
+        """Route the built-in per-request log to the rotating log file."""
+        logger.info("%s - %s", self.address_string(), format % args)
 
 
 def run():
     server_address = ('', PORT)
     httpd = HTTPServer(server_address, FileServerHandler)
+    logger.info("Server starting - port=%d archive=%s", PORT, ARCHIVE_PATH)
     print(f"SponsorBlock Archive File Server")
     print(f"Serving files from: {ARCHIVE_PATH}")
     print(f"Listening on port {PORT}")
